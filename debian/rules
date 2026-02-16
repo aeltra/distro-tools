@@ -2,7 +2,7 @@
 
 export DH_VERBOSE = 1
 
-export BONDI_DISTRO_TOOLS_VERSION = $(shell \
+export AELTRA_DISTRO_TOOLS_VERSION = $(shell \
 	head -n1 debian/changelog | awk '{{print $$2}}' | \
 		sed 's/(\|)//g' | rev | cut -d- -f2- | rev \
 )
@@ -12,22 +12,22 @@ export BONDI_DISTRO_TOOLS_VERSION = $(shell \
 
 override_dh_auto_configure:
 	for PROJECT in ffi-libarchive misc distro-info package repository image-gen; do \
-		pybuild -p 3 -d $$PROJECT --name bondi-$${PROJECT} --configure; \
+		pybuild -p 3 -d $$PROJECT --name aeltra-$${PROJECT} --configure; \
 	done
 
 override_dh_auto_build:
 	for PROJECT in ffi-libarchive misc distro-info package repository image-gen; do \
-		pybuild -p 3 -d $$PROJECT --name bondi-$${PROJECT} --build; \
+		pybuild -p 3 -d $$PROJECT --name aeltra-$${PROJECT} --build; \
 	done
 
 override_dh_auto_install:
 	for PROJECT in ffi-libarchive misc distro-info package repository image-gen; do \
-		pybuild -p 3 -d $$PROJECT --name bondi-$${PROJECT} --install; \
+		pybuild -p 3 -d $$PROJECT --name aeltra-$${PROJECT} --install; \
 	done
 
 override_dh_auto_clean:
 	for PROJECT in ffi-libarchive misc distro-info package repository image-gen; do \
-		pybuild -p 3 -d $$PROJECT --name bondi-$${PROJECT} --clean; \
+		pybuild -p 3 -d $$PROJECT --name aeltra-$${PROJECT} --clean; \
 	done
 	rm -fr */lib/*.egg-info
 	rm -fr .pybuild

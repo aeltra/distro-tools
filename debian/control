@@ -1,4 +1,4 @@
-Source: bondi-distro-tools
+Source: aeltra-distro-tools
 Section: admin
 Priority: optional
 Maintainer: Tobias Koch <tobias.koch@gmail.com>
@@ -8,10 +8,10 @@ Build-Depends:
  python3-all,
  python3-setuptools
 Standards-Version: 4.1.3
-Homepage: https://github.com/yaybondi/distro-tools
+Homepage: https://github.com/aeltra/distro-tools
 X-Python3-Version: >= 3.2
 
-Package: python3-bondi-ffi-libarchive
+Package: python3-aeltra-ffi-libarchive
 Architecture: all
 Depends:
  libarchive-dev,
@@ -20,42 +20,42 @@ Depends:
 Description: ffi bindings to libarchive-dev (Python 3)
  Foreign function interface bindinds to libarchive.
 
-Package: python3-bondi-misc
+Package: python3-aeltra-misc
 Architecture: all
 Depends:
  ${python3:Depends},
  ${misc:Depends}
-Description: Utilities shared among other Bondi OS Python packages (Python 3)
- Collection of scripts shared among other Bondi OS Python packages.
+Description: Utilities shared among other Aeltra OS Python packages (Python 3)
+ Collection of scripts shared among other Aeltra OS Python packages.
 
-Package: python3-bondi-distro-info
+Package: python3-aeltra-distro-info
 Architecture: all
 Depends:
- python3-bondi-misc (= ${binary:Version}),
+ python3-aeltra-misc (= ${binary:Version}),
  ${python3:Depends},
  ${misc:Depends}
-Description: Bondi distro info tool (Python 3)
- This package contains the bondi-distro-info tool.
+Description: Aeltra distro info tool (Python 3)
+ This package contains the aeltra-distro-info tool.
 
-Package: bondi-distro-info
+Package: aeltra-distro-info
 Architecture: all
 Depends:
- python3-bondi-distro-info (= ${binary:Version}),
+ python3-aeltra-distro-info (= ${binary:Version}),
  ${misc:Depends}
-Description: Bondi distro info tool (meta package)
- This pulls in python3-bondi-distro-info package which contains the
- bondi-distro-info tool.
+Description: Aeltra distro info tool (meta package)
+ This pulls in python3-aeltra-distro-info package which contains the
+ aeltra-distro-info tool.
 
-Package: python3-bondi-package
+Package: python3-aeltra-package
 Architecture: all
 Depends:
  autotools-dev,
  binutils,
  chrpath,
  patch,
- python3-bondi-ffi-libarchive (= ${binary:Version}),
- python3-bondi-misc (= ${binary:Version}),
- python3-bondi-distro-info (= ${binary:Version}),
+ python3-aeltra-ffi-libarchive (= ${binary:Version}),
+ python3-aeltra-misc (= ${binary:Version}),
+ python3-aeltra-distro-info (= ${binary:Version}),
  python3-dateutil,
  python3-html2text,
  python3-lxml,
@@ -63,51 +63,51 @@ Depends:
  usign,
  ${python3:Depends},
  ${misc:Depends}
-Description: Bondi OS packaging tools (Python 3)
- This package contains the bondi-pack and deb2bondi tools.
+Description: Aeltra OS packaging tools (Python 3)
+ This package contains the aeltra-pack and deb2aeltra tools.
 
-Package: bondi-package
+Package: aeltra-package
 Architecture: all
 Depends:
- python3-bondi-package (= ${binary:Version}),
+ python3-aeltra-package (= ${binary:Version}),
  ${misc:Depends}
-Description: Bondi OS packaging tools (meta package)
- This pulls in the python3-bondi-package package, which contains the bondi-pack
- and deb2bondi tools.
+Description: Aeltra OS packaging tools (meta package)
+ This pulls in the python3-aeltra-package package, which contains the aeltra-pack
+ and deb2aeltra tools.
 
-Package: python3-bondi-repository
+Package: python3-aeltra-repository
 Architecture: all
 Depends:
  usign,
- python3-bondi-package (= ${binary:Version}),
+ python3-aeltra-package (= ${binary:Version}),
  ${python3:Depends},
  ${misc:Depends}
-Description: Bondi OS repo management tools (Python 3)
- This package contains the bondi-repo-index tool.
+Description: Aeltra OS repo management tools (Python 3)
+ This package contains the aeltra-repo-index tool.
 
-Package: bondi-repo-index
+Package: aeltra-repo-index
 Architecture: all
 Depends:
- python3-bondi-repository (= ${binary:Version}),
+ python3-aeltra-repository (= ${binary:Version}),
  ${misc:Depends}
-Description: Bondi OS package repo index generator (meta package)
- This pulls in the python3-bondi-repository package, which contains the
- bondi-repo-index tool.
+Description: Aeltra OS package repo index generator (meta package)
+ This pulls in the python3-aeltra-repository package, which contains the
+ aeltra-repo-index tool.
 
-Package: python3-bondi-image-gen
+Package: python3-aeltra-image-gen
 Architecture: all
 Depends:
- python3-bondi-misc (= ${binary:Version}),
+ python3-aeltra-misc (= ${binary:Version}),
  ${python3:Depends},
  ${misc:Depends}
-Description: Bondi OS image generator scripts (Python 3)
- This package contains the bondi-image tool.
+Description: Aeltra OS image generator scripts (Python 3)
+ This package contains the aeltra-image tool.
 
-Package: bondi-image
+Package: aeltra-image
 Architecture: all
 Depends:
- python3-bondi-image-gen (= ${binary:Version}),
+ python3-aeltra-image-gen (= ${binary:Version}),
  ${misc:Depends}
-Description: Bondi OS image generator (meta package)
- This pulls in the python3-bondi-image-generator package, which contains the
- bondi-image tool.
+Description: Aeltra OS image generator (meta package)
+ This pulls in the python3-aeltra-image-generator package, which contains the
+ aeltra-image tool.

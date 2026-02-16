@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Bondi miscellaneous Python modules."""
+"""Aeltra miscellaneous Python modules."""
 
 import os
 
@@ -10,18 +10,18 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-VERSION = os.environ.get("BONDI_DISTRO_TOOLS_VERSION", "0.0.0")
+VERSION = os.environ.get("AELTRA_DISTRO_TOOLS_VERSION", "0.0.0")
 
 setup(
-    name='bondi-misc',
+    name='aeltra-misc',
     version=VERSION,
-    url='https://github.com/yaybondi/bondi-distro-tools',
+    url='https://github.com/aeltra/aeltra-distro-tools',
     author='Tobias Koch',
     author_email='tobias.koch@gmail.com',
     license='MIT',
     packages=[
-        'yaybondi',
-        'yaybondi.miscellaneous',
+        'aeltra',
+        'aeltra.miscellaneous',
     ],
     package_dir={'': 'lib'},
     platforms=['Linux'],
@@ -33,7 +33,7 @@ setup(
         'Programming Language :: Python :: 3'
     ],
 
-    keywords='Bondi OS shared modules',
-    description='Python modules shared between Bondi OS Python projects',
-    long_description='Python modules shared between Bondi OS Python projects',
+    keywords='Aeltra OS shared modules',
+    description='Python modules shared between Aeltra OS Python projects',
+    long_description='Python modules shared between Aeltra OS Python projects',
 )

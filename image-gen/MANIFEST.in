@@ -1,2 +1,2 @@
-include lib/yaybondi/osimage/customize/**/*
-include lib/yaybondi/osimage/package/**/*
+include lib/aeltra/osimage/customize/**/*
+include lib/aeltra/osimage/package/**/*

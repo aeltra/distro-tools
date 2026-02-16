@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Bondi OS packaging scripts and tools."""
+"""Aeltra OS packaging scripts and tools."""
 
 import os
 
@@ -10,29 +10,29 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-VERSION = os.environ.get("BONDI_DISTRO_TOOLS_VERSION", "0.0.0")
+VERSION = os.environ.get("AELTRA_DISTRO_TOOLS_VERSION", "0.0.0")
 
 setup(
-    name='bondi-package',
+    name='aeltra-package',
     version=VERSION,
-    url='https://github.com/yaybondi/bondi-distro-tools',
+    url='https://github.com/aeltra/aeltra-distro-tools',
     author='Tobias Koch',
     author_email='tobias.koch@gmail.com',
     license='MIT',
 
     packages=[
-        'yaybondi.package',
-        'yaybondi.package.bondipack',
-        'yaybondi.package.deb2bondi',
+        'aeltra.package',
+        'aeltra.package.aeltrapack',
+        'aeltra.package.deb2aeltra',
     ],
     data_files=[
         ('bin', [
-            'bin/bondi-pack',
-            'bin/deb2bondi',
+            'bin/aeltra-pack',
+            'bin/deb2aeltra',
         ]),
     ],
     package_data={
-        'yaybondi.package.bondipack': [
+        'aeltra.package.aeltrapack': [
             "helpers/python.sh",
             "helpers/arch.sh",
             "relaxng/package.rng.xml",
@@ -48,7 +48,7 @@ setup(
         'Programming Language :: Python :: 3'
     ],
 
-    keywords='Bondi OS packaging development',
-    description='Bondi OS packaging scripts and tools',
-    long_description='Bondi OS packaging scripts and tools',
+    keywords='Aeltra OS packaging development',
+    description='Aeltra OS packaging scripts and tools',
+    long_description='Aeltra OS packaging scripts and tools',
 )

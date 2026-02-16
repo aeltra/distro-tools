@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Bondi OS image generator tool."""
+"""Aeltra OS image generator tool."""
 
 import os
 
@@ -10,24 +10,24 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-VERSION = os.environ.get("BONDI_DISTRO_TOOLS_VERSION", "0.0.0")
+VERSION = os.environ.get("AELTRA_DISTRO_TOOLS_VERSION", "0.0.0")
 
 setup(
-    name='bondi-image',
+    name='aeltra-image',
     version=VERSION,
-    url='https://github.com/yaybondi/image-generator',
+    url='https://github.com/aeltra/image-generator',
     author='Tobias Koch',
     author_email='tobias.koch@gmail.com',
     license='MIT',
     packages=[
-        'yaybondi.osimage',
+        'aeltra.osimage',
     ],
     package_dir={'': 'lib'},
     data_files=[
-        ('bin', ['bin/bondi-image']),
+        ('bin', ['bin/aeltra-image']),
     ],
     package_data={
-        'yaybondi.osimage': [
+        'aeltra.osimage': [
             "customize/sydney/build-essential",
             "customize/sydney/minimal",
             "package/common/tarball",
@@ -42,7 +42,7 @@ setup(
         'Programming Language :: Python :: 3'
     ],
 
-    keywords='Bondi OS image generator',
-    description='Bondi OS image generator tool',
-    long_description='Bondi OS image generator tool',
+    keywords='Aeltra OS image generator',
+    description='Aeltra OS image generator tool',
+    long_description='Aeltra OS image generator tool',
 )

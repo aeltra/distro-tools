@@ -10,17 +10,17 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-VERSION = os.environ.get("BONDI_DISTRO_TOOLS_VERSION", "0.0.0")
+VERSION = os.environ.get("AELTRA_DISTRO_TOOLS_VERSION", "0.0.0")
 
 setup(
-    name='bondi-ffi-libarchive',
+    name='aeltra-ffi-libarchive',
     version=VERSION,
-    url='https://github.com/yaybondi/bondi-distro-tools',
+    url='https://github.com/aeltra/aeltra-distro-tools',
     author='Tobias Koch',
     author_email='tobias.koch@gmail.com',
     license='MIT',
     packages=[
-        'yaybondi.ffi',
+        'aeltra.ffi',
     ],
     package_dir={'': 'lib'},
     platforms=['Linux'],

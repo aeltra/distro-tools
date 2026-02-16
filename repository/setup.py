@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Bondi OS repository index generator."""
+"""Aeltra OS repository index generator."""
 
 import os
 
@@ -10,22 +10,22 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-VERSION = os.environ.get("BONDI_DISTRO_TOOLS_VERSION", "0.0.0")
+VERSION = os.environ.get("AELTRA_DISTRO_TOOLS_VERSION", "0.0.0")
 
 setup(
-    name='bondi-repository',
+    name='aeltra-repository',
     version=VERSION,
-    url='https://github.com/yaybondi/distro-tools',
+    url='https://github.com/aeltra/distro-tools',
     author='Tobias Koch',
     author_email='tobias.koch@gmail.com',
     license='MIT',
     packages=[
-        'yaybondi.repository',
+        'aeltra.repository',
     ],
     package_dir={'': 'lib'},
     data_files=[
         ('bin', [
-            'bin/bondi-repo-index',
+            'bin/aeltra-repo-index',
         ]),
     ],
     platforms=['Linux'],
@@ -37,7 +37,7 @@ setup(
         'Programming Language :: Python :: 3'
     ],
 
-    keywords='Bondi OS package repository index',
-    description='Bondi OS package repository index generator',
-    long_description='Bondi OS package repository index generator',
+    keywords='Aeltra OS package repository index',
+    description='Aeltra OS package repository index generator',
+    long_description='Aeltra OS package repository index generator',
 )
