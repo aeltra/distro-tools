@@ -54,10 +54,16 @@ class DistroInfo:
         return self.implementation.pick_mirror(**kwargs)
 
     def release_exists(self, name):
-        return name in self.list(supported=True, unsupported=True)
+        return any(
+            r["version_codename"] == name
+            for r in self.list(supported=True, unsupported=True, unstable=True)
+        )
 
     def is_supported_release(self, name):
-        return name in self.list(supported=True)
+        return any(
+            r["version_codename"] == name
+            for r in self.list(supported=True)
+        )
 
     def is_supported_libc(self, release, libc):
         arch_list = self.find(release=release) \
@@ -75,7 +81,7 @@ class DistroInfo:
 
     def latest_release(self):
         try:
-            return list(self.list(supported=True).keys())[-1]
+            return self.list(supported=True)[0]["version_codename"]
         except IndexError:
             return None
 
