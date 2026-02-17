@@ -121,8 +121,8 @@ class PackageBatch:
         mode = "install" if mode == "+" else "remove"
 
         aept_cmd = shlex.split(
-            "aept -c '{}/etc/aept/aept.conf' {} -o '{}' {}".format(
-                sysroot, mode, sysroot, ' '.join(packages)
+            "aept -o '{}' {} {}".format(
+                sysroot, mode, ' '.join(packages)
             )
         )
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd, env=env)

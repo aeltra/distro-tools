@@ -223,8 +223,8 @@ class ImageGenerator:
             shutil.copy2(file_, sysroot + file_)
 
         aept_cmd = shlex.split(
-            "aept -c '{}/etc/aept/aept.conf' update -o '{}'"
-            .format(sysroot, sysroot)
+            "aept -o '{}' update"
+            .format(sysroot)
         )
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd)
     #end function
@@ -270,8 +270,8 @@ class ImageGenerator:
 
         if os.path.exists(sysroot + "/usr/bin/aept"):
             aept_cmd = shlex.split(
-                "aept -c '{}/etc/aept/aept.conf' clean -o '{}'"
-                .format(sysroot, sysroot)
+                "aept -o '{}' clean"
+                .format(sysroot)
             )
 
             Subprocess.run(sysroot, aept_cmd[0], aept_cmd, check=False)
