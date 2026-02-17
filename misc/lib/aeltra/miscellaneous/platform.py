@@ -35,7 +35,7 @@ class Platform:
 
     CONFIG_GUESS           = "/usr/share/misc/config.guess"
     LIBC_NAME_FILE         = "/usr/share/misc/libc.name"
-    OPKG_MUSL_CONTROL_FILE = "/var/lib/opkg/info/musl-libc.control"
+    AEPT_MUSL_CONTROL_FILE = "/var/lib/aept/info/musl-libc.control"
 
     @staticmethod
     def config_guess():
@@ -193,7 +193,7 @@ class Platform:
         if os.path.exists(Platform.LIBC_NAME_FILE):
             with open(Platform.LIBC_NAME_FILE, "r", encoding="utf-8") as f:
                 result = f.read().strip()
-        elif os.path.exists(Platform.OPKG_MUSL_CONTROL_FILE):
+        elif os.path.exists(Platform.AEPT_MUSL_CONTROL_FILE):
             result = "musl"
 
         return result

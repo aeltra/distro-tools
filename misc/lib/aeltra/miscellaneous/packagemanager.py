@@ -24,7 +24,7 @@
 #
 
 import os
-from aeltra.miscellaneous.xpkg import Dpkg, Opkg  # noqa:
+from aeltra.miscellaneous.xpkg import Dpkg, Aept  # noqa:
 
 class PackageManager:
 
@@ -42,7 +42,7 @@ class PackageManager:
 
     @classmethod
     def system_package_manager(klass):
-        for executable in ["dpkg", "opkg"]:
+        for executable in ["dpkg", "aept"]:
             for search_dir in os.environ.get("PATH", "").split(os.pathsep):
                 if os.path.exists(os.path.join(search_dir, executable)):
                     return globals()[executable.capitalize()]

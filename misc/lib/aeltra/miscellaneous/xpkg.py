@@ -238,15 +238,15 @@ class Dpkg(BaseXpkg):
 
 #end class
 
-class Opkg(BaseXpkg):
-    STATUS_FILE = '/var/lib/opkg/status'
+class Aept(BaseXpkg):
+    STATUS_FILE = '/var/lib/aept/status'
 
     def __init__(self):
         super().__init__()
 
     def which_package_provides(self, filename):
         abspath = os.path.abspath(filename)
-        cmd     = ["opkg", "search", abspath]
+        cmd     = ["aept", "search", abspath]
 
         try:
             procinfo = subprocess.run(cmd, stdout=subprocess.PIPE,
@@ -256,12 +256,11 @@ class Opkg(BaseXpkg):
 
         return procinfo.stdout\
             .decode(self.preferred_encoding)\
-            .strip()\
-            .split(" - ", 1)[0]
+            .strip()
     #end function
 
     def main_architecture(self):
-        cmd = ["opkg", "print-architecture"]
+        cmd = ["aept", "print-architecture"]
 
         try:
             procinfo = subprocess.run(cmd, stdout=subprocess.PIPE,
@@ -276,14 +275,10 @@ class Opkg(BaseXpkg):
         for line in [line.strip() for line in buf.splitlines()]:
             if not line:
                 continue
-            try:
-                _, arch, _ = line.split()
-                if arch not in ["all", "tools"]:
-                    return arch
-            except ValueError:
-                continue
+            if line not in ["all", "tools"]:
+                return line
 
-            return None
+        return None
     #end function
 
 #end class
