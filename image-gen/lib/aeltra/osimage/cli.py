@@ -57,7 +57,7 @@ class ImageGenCli:
                 OPTIONS:
 
                   -h, --help       Print this help message.
-                  -r, --release    The name of the release (e.g. sydney).
+                  -r, --release    The name of the release.
                   -a, --arch       The target architecture.
                   -l, --libc       The C runtime to use ("musl" or "glibc").
 

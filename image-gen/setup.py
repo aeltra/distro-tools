@@ -28,8 +28,8 @@ setup(
     ],
     package_data={
         'aeltra.osimage': [
-            "customize/sydney/build-essential",
-            "customize/sydney/minimal",
+            "customize/pasteur/build-essential",
+            "customize/pasteur/minimal",
             "package/common/tarball",
         ],
     },

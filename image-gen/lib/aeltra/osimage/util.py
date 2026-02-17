@@ -80,7 +80,7 @@ class ImageGeneratorUtils:
     def determine_target_libc(sysroot):
         ImageGeneratorUtils.raise_unless_sysroot_exists(sysroot)
 
-        musl_libc_list = sysroot + "/var/lib/opkg/info/musl-libc.list"
+        musl_libc_list = sysroot + "/var/lib/aept/info/musl-libc.list"
         if os.path.exists(musl_libc_list):
             return "musl"
 
@@ -91,12 +91,12 @@ class ImageGeneratorUtils:
     def determine_target_arch(sysroot):
         ImageGeneratorUtils.raise_unless_sysroot_exists(sysroot)
 
-        arch_conf = sysroot + "/etc/opkg/arch.conf"
+        aept_conf = sysroot + "/etc/aept/aept.conf"
 
-        if os.path.exists(arch_conf):
-            with open(arch_conf, "r", encoding="utf-8") as f:
+        if os.path.exists(aept_conf):
+            with open(aept_conf, "r", encoding="utf-8") as f:
                 for line in f:
-                    m = re.match(r"^\s*arch\s+(?P<arch>\S+)\s+\d+\s*$", line)
+                    m = re.match(r"^\s*arch\s+(?P<arch>\S+)\s*$", line)
                     if m:
                         if m.group("arch") not in ["all", "tools"]:
                             return m.group("arch")

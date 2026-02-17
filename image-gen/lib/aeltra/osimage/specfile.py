@@ -120,16 +120,12 @@ class PackageBatch:
 
         mode = "install" if mode == "+" else "remove"
 
-        tmp_prefix = os.path.join(sysroot, "tmp", "igen-")
-
-        with tempfile.TemporaryDirectory(prefix=tmp_prefix) as tmpdir:
-            opkg_cmd = shlex.split(
-                "opkg --tmp-dir '{}' --offline-root '{}' {} {}".format(
-                    tmpdir, sysroot, mode, ' '.join(packages)
-                )
+        aept_cmd = shlex.split(
+            "aept -c '{}/etc/aept/aept.conf' -o '{}' {} {}".format(
+                sysroot, sysroot, mode, ' '.join(packages)
             )
-            Subprocess.run(sysroot, opkg_cmd[0], opkg_cmd, env=env)
-        #end with
+        )
+        Subprocess.run(sysroot, aept_cmd[0], aept_cmd, env=env)
     #end function
 
 #end class

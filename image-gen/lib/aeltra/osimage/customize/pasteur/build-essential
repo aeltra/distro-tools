@@ -4,7 +4,7 @@
 
 +base-files
 +busybox-all-symlinks
-+opkg-minimal
++aept
 +aeltra-repo-keys
 +pam-config
 +libc-dev
@@ -35,13 +35,14 @@ fi
 
 echo "Configuring tools repository for $AELTRA_HOST_ARCH."
 
-cat << EOF > /etc/opkg/tools.conf
-arch tools 1
+cat << EOF >> /etc/aept/aept.conf
+
+arch tools
 src/gz tools http://archive.aeltra.eu/dists/$AELTRA_RELEASE/core/$AELTRA_ARCH/$AELTRA_LIBC/tools/$AELTRA_HOST_ARCH
 src/gz cross-tools http://archive.aeltra.eu/dists/$AELTRA_RELEASE/core/$AELTRA_ARCH/$AELTRA_LIBC/cross-tools/$AELTRA_HOST_ARCH
 EOF
 
-opkg update
+aept update
 
 ===============================================================================
 = Install a minimal base system into the tools folder.
@@ -49,7 +50,7 @@ opkg update
 
 +tools-base-files
 +tools-busybox-all-symlinks
-+tools-opkg-minimal
++tools-aept
 
 ===============================================================================
 = Add compilers, build systems and other tools commonly needed during software

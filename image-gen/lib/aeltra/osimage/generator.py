@@ -29,7 +29,6 @@ import os
 import re
 import shlex
 import shutil
-import tempfile
 import textwrap
 
 from aeltra.error import AeltraError
@@ -42,37 +41,23 @@ LOGGER = logging.getLogger(__name__)
 
 class ImageGenerator:
 
-    OPKG_OPTIONS_TEMPLATE = textwrap.dedent(
-        """\
-        dest root /
-
-        option signature_type usign
-        option no_install_recommends
-        option force_removal_of_dependent_packages
-        option force_postinstall
-
-        {opt_check_sig}
-        """
-    )
-
-    OPKG_FEEDS_TEMPLATE = textwrap.dedent(
+    AEPT_CONFIG_TEMPLATE = textwrap.dedent(
         """\
         src/gz main {repo_base}/{release}/core/{arch}/{libc}/main
-        """
-    )
 
-    OPKG_ARCH_TEMPLATE = textwrap.dedent(
-        """\
-        arch {arch} 1
-        arch all 1
+        arch {arch}
+        arch all
+
+        {opt_check_sig}
         """
     )
 
     DIRS_TO_CREATE = [
         (0o0755, "/dev"),
         (0o0755, "/etc"),
-        (0o0755, "/etc/opkg"),
-        (0o0755, "/etc/opkg/usign"),
+        (0o0755, "/etc/aept"),
+        (0o0755, "/etc/aept/usign"),
+        (0o0755, "/etc/aept/usign/trustdb"),
         (0o0755, "/proc"),
         (0o0755, "/run"),
         (0o0755, "/sys"),
@@ -180,7 +165,7 @@ class ImageGenerator:
         self._verify    = verify
         self._repo_base = repo_base or "http://archive.aeltra.eu/dists"
 
-        opt_check_sig = "option check_signature" if self._verify else ""
+        opt_check_sig = "" if self._verify else "option check_signature 0"
         uname_m = Platform.uname("-m")
 
         tools_type = Platform.target_for_machine(uname_m, self._libc)
@@ -237,13 +222,11 @@ class ImageGenerator:
         for file_ in files_to_copy:
             shutil.copy2(file_, sysroot + file_)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            opkg_cmd = shlex.split(
-                "opkg --tmp-dir '{}' --offline-root '{}' update"
-                .format(tmpdir, sysroot)
-            )
-            Subprocess.run(sysroot, opkg_cmd[0], opkg_cmd)
-        #end with
+        aept_cmd = shlex.split(
+            "aept -c '{}/etc/aept/aept.conf' -o '{}' update"
+            .format(sysroot, sysroot)
+        )
+        Subprocess.run(sysroot, aept_cmd[0], aept_cmd)
     #end function
 
     def customize(self, sysroot, specfile):
@@ -285,12 +268,13 @@ class ImageGenerator:
 
         sysroot = os.path.realpath(sysroot)
 
-        if os.path.exists(sysroot + "/usr/bin/opkg"):
-            opkg_cmd = shlex.split(
-                "opkg --offline-root '{}' clean".format(sysroot)
+        if os.path.exists(sysroot + "/usr/bin/aept"):
+            aept_cmd = shlex.split(
+                "aept -c '{}/etc/aept/aept.conf' -o '{}' clean"
+                .format(sysroot, sysroot)
             )
 
-            Subprocess.run(sysroot, opkg_cmd[0], opkg_cmd, check=False)
+            Subprocess.run(sysroot, aept_cmd[0], aept_cmd, check=False)
         #end if
 
         self._write_config_files(sysroot)
@@ -367,18 +351,14 @@ class ImageGenerator:
 
     def _write_config_files(self, sysroot):
         conffile_list = [
-            "/etc/opkg/arch.conf",
-            "/etc/opkg/options.conf",
-            "/etc/opkg/feeds.conf",
+            "/etc/aept/aept.conf",
             "/etc/passwd",
             "/etc/group",
             "/etc/hosts",
         ]
 
         template_list = [
-            self.OPKG_ARCH_TEMPLATE,
-            self.OPKG_OPTIONS_TEMPLATE,
-            self.OPKG_FEEDS_TEMPLATE,
+            self.AEPT_CONFIG_TEMPLATE,
             self.ETC_PASSWD,
             self.ETC_GROUP,
             self.ETC_HOSTS,
