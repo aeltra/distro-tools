@@ -246,7 +246,7 @@ class Aept(BaseXpkg):
 
     def which_package_provides(self, filename):
         abspath = os.path.abspath(filename)
-        cmd     = ["aept", "search", abspath]
+        cmd     = ["aept", "owns", abspath]
 
         try:
             procinfo = subprocess.run(cmd, stdout=subprocess.PIPE,
