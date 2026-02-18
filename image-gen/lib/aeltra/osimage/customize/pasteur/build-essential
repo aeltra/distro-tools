@@ -10,6 +10,14 @@
 +libc-dev
 
 ===============================================================================
+= Mark essential packages
+===============================================================================
+
+#!/bin/sh
+
+aept --offline-root "$AELTRA_SYSROOT" mark manual --all
+
+===============================================================================
 = Installing mount, sysctl, file and binutils may remove some of the busybox
 = symlinks, that's why they are installed separately.
 ===============================================================================
