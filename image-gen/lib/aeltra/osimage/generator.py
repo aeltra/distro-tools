@@ -254,7 +254,7 @@ class ImageGenerator:
                 )
             )
 
-            p.apply(sysroot, env=env)
+            p.apply(sysroot, env=dict(env))
         #end for
     #end function
 
