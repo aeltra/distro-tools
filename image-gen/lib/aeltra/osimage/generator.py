@@ -208,10 +208,6 @@ class ImageGenerator:
             os.chmod(full_path, mode)
         #end for
 
-        var_run_symlink = sysroot + "/var/run"
-        if not os.path.exists(var_run_symlink):
-            os.symlink("../run", var_run_symlink)
-
         self._write_config_files(sysroot)
 
         files_to_copy = [
