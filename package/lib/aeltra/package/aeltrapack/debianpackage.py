@@ -122,7 +122,7 @@ class DebianPackage(BinaryPackage):
     def assemble_parts(self, meta_data, pkg_contents, pkg_filename):
         with TemporaryDirectory(prefix="aeltra-") as tmpdir:
             installed_size = self.write_data_part(pkg_contents,
-                    os.path.join(tmpdir, "data.tar.gz"))
+                    os.path.join(tmpdir, "data.tar.zst"))
 
             # According to Debian Policy Manual Installed-Size is in KB
             installed_size = int(installed_size / 1024 + 0.5)
@@ -130,7 +130,7 @@ class DebianPackage(BinaryPackage):
             meta_data["Installed-Size"] = "{}".format(installed_size)
 
             self.write_control_part(meta_data, pkg_contents,
-                    os.path.join(tmpdir, "control.tar.gz"))
+                    os.path.join(tmpdir, "control.tar.zst"))
 
             with open(os.path.join(tmpdir, "debian-binary"), "w+",
                     encoding="utf-8") as fp:
@@ -140,8 +140,8 @@ class DebianPackage(BinaryPackage):
             with ArchiveFileWriter(pkg_filename, libarchive.FORMAT_AR_SVR4,
                     libarchive.COMPRESSION_NONE) as archive:
                 with ArchiveEntry() as archive_entry:
-                    for entry_name in ["debian-binary", "control.tar.gz",
-                            "data.tar.gz"]:
+                    for entry_name in ["debian-binary", "control.tar.zst",
+                            "data.tar.zst"]:
                         archive_entry.clear()
 
                         full_path = os.path.normpath(os.sep.join([tmpdir,
@@ -169,9 +169,12 @@ class DebianPackage(BinaryPackage):
         #end with
     #end function
 
+    ZSTD_OPTIONS = [("zstd", "compression-level", "19")]
+
     def write_control_part(self, meta_data, pkg_contents, ctrl_abspath):
         with ArchiveFileWriter(ctrl_abspath, libarchive.FORMAT_TAR_USTAR,
-                libarchive.COMPRESSION_GZIP) as archive:
+                libarchive.COMPRESSION_ZSTD,
+                options=self.ZSTD_OPTIONS) as archive:
 
             control_contents = [("control", str(meta_data), 0o644)]
 
@@ -209,7 +212,8 @@ class DebianPackage(BinaryPackage):
         installed_size = 0
 
         with ArchiveFileWriter(data_abspath, libarchive.FORMAT_TAR_USTAR,
-                libarchive.COMPRESSION_GZIP) as archive:
+                libarchive.COMPRESSION_ZSTD,
+                options=self.ZSTD_OPTIONS) as archive:
 
             timestamp = int(time.time())
 

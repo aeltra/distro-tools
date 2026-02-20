@@ -57,6 +57,7 @@ COMPRESSION_GZIP = 16
 COMPRESSION_LZMA = 17
 COMPRESSION_XZ = 18
 COMPRESSION_NONE = 19
+COMPRESSION_ZSTD = 20
 
 STATUS_OK = 0
 STATUS_EOF = 1
@@ -93,6 +94,7 @@ _compression_functions = {
     COMPRESSION_GZIP: "archive_write_add_filter_gzip",
     COMPRESSION_LZMA: "archive_write_add_filter_lzma",
     COMPRESSION_XZ: "archive_write_add_filter_xz",
+    COMPRESSION_ZSTD: "archive_write_add_filter_zstd",
     COMPRESSION_NONE: "archive_write_add_filter_none",
     None: "archive_write_add_filter_none"
 }
