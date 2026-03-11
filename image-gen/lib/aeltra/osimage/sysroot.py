@@ -110,6 +110,11 @@ class Sysroot:
                     for i in range(10):
                         os.lstat(proc_entry)
                         time.sleep(0.05 * 1.1**i)
+                except PermissionError:
+                    raise Sysroot.Error(
+                        "cannot terminate process {} (permission denied), "
+                        "aborting.".format(pid)
+                    )
                 except (ProcessLookupError, FileNotFoundError):
                     pass
             #end for
