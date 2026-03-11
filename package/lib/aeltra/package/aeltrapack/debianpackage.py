@@ -185,6 +185,9 @@ class DebianPackage(BinaryPackage):
             if conffiles:
                 control_contents.append(["conffiles", conffiles, 0o644])
 
+            if self.triggers:
+                control_contents.append(["triggers", self.triggers, 0o644])
+
             timestamp = int(time.time())
 
             with ArchiveEntry() as archive_entry:

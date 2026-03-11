@@ -427,6 +427,26 @@
                                     <text/>
                                 </element>
                             </optional>
+                            <optional>
+                                <element name="trigger">
+                                    <oneOrMore>
+                                        <element name="interest">
+                                            <attribute name="path"/>
+                                            <optional>
+                                                <attribute name="modify-only">
+                                                    <choice>
+                                                        <value>true</value>
+                                                        <value>false</value>
+                                                    </choice>
+                                                </attribute>
+                                            </optional>
+                                        </element>
+                                    </oneOrMore>
+                                    <element name="script">
+                                        <text/>
+                                    </element>
+                                </element>
+                            </optional>
                         </interleave>
                     </element>
                 </optional>

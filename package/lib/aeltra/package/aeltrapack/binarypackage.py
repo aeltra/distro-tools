@@ -191,6 +191,43 @@ class BinaryPackage(BasePackage):
             #end if
         #end for
 
+        self.triggers = None
+        trigger_node = bin_node.find("maintainer-scripts/trigger")
+        if trigger_node is not None:
+            lines = []
+            for interest in trigger_node.findall("interest"):
+                path = interest.get("path")
+                self._validate_trigger_path(path)
+                modify_only = interest.get("modify-only", "false").lower()
+                if modify_only == "true":
+                    lines.append("+" + path)
+                else:
+                    lines.append(path)
+                #end if
+            #end for
+            self.triggers = "\n".join(lines) + "\n"
+
+            script_node = trigger_node.find("script")
+            self.maintainer_scripts["trigger"] = textwrap.dedent(
+
+                    """\
+                #!/bin/sh -e
+
+                export AELTRA_INSTALL_PREFIX="%s"
+                export AELTRA_HOST_TYPE="%s"
+                export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+
+                if [ -d "/tools" ]; then
+                    export PATH="/tools/sbin:/tools/bin:$PATH"
+                fi
+
+                """ % (self.install_prefix, self.host_type)  # noqa
+
+            ) + etree.tostring(
+                script_node, method="text", encoding="unicode"
+            )
+        #end if
+
         content_node = bin_node.find("contents")
         if content_node is not None:
             self.content_subdir = content_node.get("subdir")
@@ -580,6 +617,63 @@ class BinaryPackage(BasePackage):
         if not found:
             raise UnmetDependency("'%s' dependency '%s' not found in any "
                 "installed or built package." % (self.name, lib_name))
+    #end function
+
+    _TRIGGER_PATH_RE = re.compile(
+        r'^(/[a-zA-Z0-9_.+\-*?\[\]]+)+$'
+    )
+
+    def _validate_trigger_path(self, path):
+        if not self._TRIGGER_PATH_RE.match(path):
+            raise PackagingError(
+                "invalid trigger interest path '%s': must be an absolute "
+                "path using only valid path and glob characters" % path
+            )
+        #end if
+
+        components = path.split('/')
+        for comp in components[1:]:
+            if comp in ('.', '..'):
+                raise PackagingError(
+                    "invalid trigger interest path '%s': "
+                    "'.' and '..' components are not allowed" % path
+                )
+            #end if
+        #end for
+
+        if '**' in path:
+            raise PackagingError(
+                "invalid trigger interest path '%s': "
+                "'**' is not supported (use '*' instead)" % path
+            )
+        #end if
+
+        depth = 0
+        for ch in path:
+            if ch == '[':
+                depth += 1
+                if depth > 1:
+                    raise PackagingError(
+                        "invalid trigger interest path '%s': "
+                        "nested brackets" % path
+                    )
+                #end if
+            elif ch == ']':
+                depth -= 1
+                if depth < 0:
+                    raise PackagingError(
+                        "invalid trigger interest path '%s': "
+                        "unmatched ']'" % path
+                    )
+                #end if
+            #end if
+        #end for
+
+        if depth != 0:
+            raise PackagingError(
+                "invalid trigger interest path '%s': unclosed '['" % path
+            )
+        #end if
     #end function
 
 #end class
