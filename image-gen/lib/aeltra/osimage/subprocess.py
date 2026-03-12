@@ -103,8 +103,11 @@ class Subprocess:
             if chroot:
                 if running_in_build_box:
                     exe = "build-box"
+                    target_dir = os.path.dirname(sysroot)
+                    target_name = os.path.basename(sysroot)
                     args = [
-                        "build-box", "run", "-t", sysroot, ".", "--"
+                        "build-box", "run", "-t", target_dir,
+                        target_name, "--"
                     ] + args
                 else:
                     try:
