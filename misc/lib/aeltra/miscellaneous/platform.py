@@ -90,21 +90,52 @@ class Platform:
     #end function
 
     @staticmethod
-    def build_flags():
+    def build_flags(env=None):
         build_flags = {}
 
         if "linux" in Platform.kernel_name().lower() and \
                 os.path.exists("/etc/debian_version"):
             return Platform._dpkg_build_flags()
 
-        build_flags["CFLAGS"] = "-g -O2 -fstack-protector-strong " \
-            "-Wformat -Werror=format-security"
-        build_flags["CXXFLAGS"] = "-g -O2 -fstack-protector-strong " \
-            "-Wformat -Werror=format-security"
+        file_prefix_map = ""
+        if env and env.get("AELTRA_BUILD_DIR"):
+            file_prefix_map = \
+                " -ffile-prefix-map=" + env["AELTRA_BUILD_DIR"] + "=."
+
+        build_flags["CFLAGS"] = \
+            "-g -O2 -Werror=implicit-function-declaration" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -Wformat -Werror=format-security -fcf-protection"
+        build_flags["CXXFLAGS"] = \
+            "-g -O2" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -Wformat -Werror=format-security -fcf-protection"
         build_flags["CPPFLAGS"] = \
             "-Wdate-time -D_FORTIFY_SOURCE=2"
+        build_flags["FCFLAGS"] = \
+            "-g -O2" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -fcf-protection"
+        build_flags["FFLAGS"] = \
+            "-g -O2" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -fcf-protection"
         build_flags["LDFLAGS"] = \
             "-Wl,-z,relro"
+        build_flags["OBJCFLAGS"] = \
+            "-g -O2" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -Wformat -Werror=format-security -fcf-protection"
+        build_flags["OBJCXXFLAGS"] = \
+            "-g -O2" \
+            + file_prefix_map + \
+            " -fstack-protector-strong -fstack-clash-protection" \
+            " -Wformat -Werror=format-security -fcf-protection"
 
         return build_flags
     #end function
@@ -301,7 +332,6 @@ class Platform:
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)\
                             .stdout.decode(preferred_encoding).strip()
 
-            value = re.sub(r"\s*-fdebug-prefix-map=\S+\s*", " ", value)
             build_flags[flag] = value
         #end for
 

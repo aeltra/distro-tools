@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 
+from datetime import datetime
 from lxml import etree
 
 from aeltra.error import PackagingError
@@ -63,12 +64,12 @@ class SourcePackage(BasePackage):
             raise ValueError(msg)
         #end if
 
-        self.base_dir = "."
         self.copy_archives = copy_archives
 
         self.name = source_node.get("name")
         self.repo = source_node.get("repo")
         self.skip = source_node.get("skip")
+        self.date = source_node.get("date")
 
         try:
             del source_node.attrib["skip"]
@@ -139,7 +140,7 @@ class SourcePackage(BasePackage):
         }
 
         for node in source_node.xpath("rules/*"):
-            if node.tag not in ["prepare", "build", "install", "clean"]:
+            if node.tag not in ["prepare", "build", "install"]:
                 continue
             self.rules[node.tag] = \
                     etree.tostring(node, method="text", encoding="unicode")
@@ -238,7 +239,7 @@ class SourcePackage(BasePackage):
         if env is None:
             env = {}
 
-        if action not in ["prepare", "build", "install", "clean"]:
+        if action not in ["prepare", "build", "install"]:
             raise PackagingError("invalid package action '%s'." %
                     str(action))
         #end if
@@ -345,18 +346,22 @@ class SourcePackage(BasePackage):
     #end function
 
     def _update_env(self, env):
-        env.update(Platform.build_flags())
+        env.update(Platform.build_flags(env))
 
-        for k, v in os.environ.items():
-            if k in ["AELTRA_WORK_DIR", "AELTRA_SOURCE_DIR", "AELTRA_BUILD_DIR",
-                    "AELTRA_INSTALL_DIR"]:
-                continue
-            if k.startswith("AELTRA_") or k in ["PATH", "USER", "USERNAME"]:
-                env[k] = v
-        #end for
+        env["LC_ALL"] = "C.UTF-8"
 
-        if "AELTRA_PARALLEL_JOBS" not in env:
-            env["AELTRA_PARALLEL_JOBS"] = str(int(os.cpu_count() * 1.5))
+        if self.date:
+            env["SOURCE_DATE_EPOCH"] = str(int(
+                datetime.fromisoformat(self.date).timestamp()
+            ))
+
+        env["AELTRA_PARALLEL_JOBS"] = os.environ.get(
+            "AELTRA_PARALLEL_JOBS",
+            env.get(
+                "AELTRA_PARALLEL_JOBS",
+                str(int(os.cpu_count() * 1.5))
+            )
+        )
 
         if env.get("PATH") is None:
             env["PATH"] = "/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin"

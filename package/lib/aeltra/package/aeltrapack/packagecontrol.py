@@ -113,7 +113,7 @@ class PackageControl:
 
         # copy maintainer, email, version, revision to package sections
         for attr_name in ["maintainer", "email", "epoch",
-                "version", "revision"]:
+                "version", "revision", "date"]:
             xpath = "/control/changelog/release[1]/@%s" % attr_name
             try:
                 attr_val = xml_doc.xpath(xpath)[0]

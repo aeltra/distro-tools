@@ -105,6 +105,8 @@ class BinaryPackage(BasePackage):
             bin_node.get("source")
         self.architecture = \
             bin_node.get("architecture")
+        self.date = \
+            bin_node.get("date")
 
         self.make_debug_pkgs = \
             kwargs.get("debug_pkgs", True)

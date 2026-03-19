@@ -25,8 +25,8 @@
 
 import os
 import stat
-import time
 
+from datetime import datetime
 from tempfile import TemporaryDirectory
 from collections import OrderedDict
 
@@ -120,9 +120,14 @@ class DebianPackage(BinaryPackage):
     #end function
 
     def assemble_parts(self, meta_data, pkg_contents, pkg_filename):
+        timestamp = int(
+            datetime.fromisoformat(self.date).timestamp()
+        )
+
         with TemporaryDirectory(prefix="aeltra-") as tmpdir:
             installed_size = self.write_data_part(pkg_contents,
-                    os.path.join(tmpdir, "data.tar.zst"))
+                    os.path.join(tmpdir, "data.tar.zst"),
+                    timestamp)
 
             # According to Debian Policy Manual Installed-Size is in KB
             installed_size = int(installed_size / 1024 + 0.5)
@@ -130,7 +135,8 @@ class DebianPackage(BinaryPackage):
             meta_data["Installed-Size"] = "{}".format(installed_size)
 
             self.write_control_part(meta_data, pkg_contents,
-                    os.path.join(tmpdir, "control.tar.zst"))
+                    os.path.join(tmpdir, "control.tar.zst"),
+                    timestamp)
 
             with open(os.path.join(tmpdir, "debian-binary"), "w+",
                     encoding="utf-8") as fp:
@@ -153,6 +159,9 @@ class DebianPackage(BinaryPackage):
                         archive_entry.gid = 0
                         archive_entry.uname = "root"
                         archive_entry.gname = "root"
+                        archive_entry.mtime = timestamp
+                        archive_entry.atime = 0
+                        archive_entry.ctime = 0
                         archive.write_entry(archive_entry)
 
                         with open(full_path, "rb") as fp:
@@ -171,7 +180,8 @@ class DebianPackage(BinaryPackage):
 
     ZSTD_OPTIONS = [("zstd", "compression-level", "19")]
 
-    def write_control_part(self, meta_data, pkg_contents, ctrl_abspath):
+    def write_control_part(self, meta_data, pkg_contents, ctrl_abspath,
+            timestamp):
         with ArchiveFileWriter(ctrl_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
                 options=self.ZSTD_OPTIONS) as archive:
@@ -188,17 +198,15 @@ class DebianPackage(BinaryPackage):
             if self.triggers:
                 control_contents.append(["triggers", self.triggers, 0o644])
 
-            timestamp = int(time.time())
-
             with ArchiveEntry() as archive_entry:
                 for entry_name, entry_contents, entry_mode in control_contents:
                     entry_contents = entry_contents.encode("utf-8")
                     archive_entry.clear()
                     archive_entry.pathname = entry_name
                     archive_entry.mode = stat.S_IFREG | entry_mode
-                    archive_entry.atime = timestamp
+                    archive_entry.atime = 0
                     archive_entry.mtime = timestamp
-                    archive_entry.ctime = timestamp
+                    archive_entry.ctime = 0
                     archive_entry.uid = 0
                     archive_entry.gid = 0
                     archive_entry.uname = "root"
@@ -211,14 +219,12 @@ class DebianPackage(BinaryPackage):
         #end with
     #end function
 
-    def write_data_part(self, pkg_contents, data_abspath):
+    def write_data_part(self, pkg_contents, data_abspath, timestamp):
         installed_size = 0
 
         with ArchiveFileWriter(data_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
                 options=self.ZSTD_OPTIONS) as archive:
-
-            timestamp = int(time.time())
 
             with ArchiveEntry() as archive_entry:
                 for src, attr in pkg_contents.items():
@@ -232,16 +238,18 @@ class DebianPackage(BinaryPackage):
                     archive_entry.clear()
                     if deftype != "file" and not os.path.exists(real_path):
                         archive_entry.mode = stat.S_IFDIR | 0o755
-                        archive_entry.atime = timestamp
-                        archive_entry.mtime = timestamp
-                        archive_entry.ctime = timestamp
                     else:
                         archive_entry._copy_raw_stat(attr.stats)
                     #end if
 
                     archive_entry.pathname = file_path
+                    archive_entry.uid = 0
+                    archive_entry.gid = 0
                     archive_entry.uname = file_owner if file_owner else "root"
                     archive_entry.gname = file_group if file_group else "root"
+                    archive_entry.mtime = min(archive_entry.mtime, timestamp)
+                    archive_entry.atime = 0
+                    archive_entry.ctime = 0
 
                     if file_mode:
                         archive_entry.mode = archive_entry.filetype | file_mode
