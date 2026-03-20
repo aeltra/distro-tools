@@ -349,6 +349,10 @@ class SourcePackage(BasePackage):
         env.update(Platform.build_flags(env))
 
         env["LC_ALL"] = "C.UTF-8"
+        env["TZ"] = "UTC"
+        env["PYTHONHASHSEED"] = "0"
+        env["PERL_HASH_SEED"] = "0"
+        env["PERL_PERTURB_KEYS"] = "0"
 
         if self.date:
             env["SOURCE_DATE_EPOCH"] = str(int(
