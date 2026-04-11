@@ -67,7 +67,7 @@ class DistroInfo:
         supported=False,
         unsupported=False,
         unstable=False,
-        *kwargs
+        **kwargs
     ):
         releases = self._load_json_file("releases")
         result   = []
