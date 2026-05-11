@@ -109,7 +109,7 @@ class Cli:
                   -h, --help           Print this help message.
                   -s, --supported      Show supported releases.
                   -u, --unsupported    Show old, unsupported releases.
-                  --include-unstable   Also list the unstable distribution.
+                  --unstable           Show the unstable distribution.
 
                 Per default supported and unsupported releases are listed and the unstable
                 distribution is excluded.
@@ -119,7 +119,7 @@ class Cli:
         try:
             opts, args = getopt.getopt(
                 args, "hsu", [
-                    "help", "supported", "unsupported", "include-unstable"
+                    "help", "supported", "unsupported", "unstable"
                 ]
             )
         except getopt.GetoptError as e:
@@ -139,10 +139,10 @@ class Cli:
                 show_supported = True
             elif o in ["-u", "--unsupported"]:
                 show_unsupported = True
-            elif o == "--include-unstable":
+            elif o == "--unstable":
                 show_unstable = True
 
-        if not (show_supported or show_unsupported):
+        if not (show_supported or show_unsupported or show_unstable):
             show_supported = show_unsupported = True
 
         if args:
@@ -156,13 +156,7 @@ class Cli:
         )
 
         for metadata in dists:
-            version_codename = metadata.get("version_codename", "")
-
-            if metadata.get("status") == "unstable":
-                print("{} (unstable)".format(version_codename))
-            else:
-                print(version_codename)
-        #end for
+            print(metadata.get("version_codename", ""))
     #end function
 
     def show(self, *args):
