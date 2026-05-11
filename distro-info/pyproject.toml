@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aeltra-distro-info"
 description = "Aeltra OS distro info"
 readme = {text = "Aeltra OS distro info", content-type = "text/plain"}
-license = "MIT"
+license = {text = "MIT"}
 authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
 keywords = ["Aeltra", "OS", "distro", "versions", "releases", "mirrors"]
 classifiers = [

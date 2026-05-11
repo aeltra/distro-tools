@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aeltra-image"
 description = "Aeltra OS image generator tool"
 readme = {text = "Aeltra OS image generator tool", content-type = "text/plain"}
-license = "MIT"
+license = {text = "MIT"}
 authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
 keywords = ["Aeltra", "OS", "image", "generator"]
 classifiers = [

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aeltra-misc"
 description = "Python modules shared between Aeltra OS Python projects"
 readme = {text = "Python modules shared between Aeltra OS Python projects", content-type = "text/plain"}
-license = "MIT"
+license = {text = "MIT"}
 authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
 keywords = ["Aeltra", "OS", "shared", "modules"]
 classifiers = [

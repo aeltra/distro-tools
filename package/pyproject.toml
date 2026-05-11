@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aeltra-package"
 description = "Aeltra OS packaging scripts and tools"
 readme = {text = "Aeltra OS packaging scripts and tools", content-type = "text/plain"}
-license = "MIT"
+license = {text = "MIT"}
 authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
 keywords = ["Aeltra", "OS", "packaging", "development"]
 classifiers = [

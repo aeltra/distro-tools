@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aeltra-repository"
 description = "Aeltra OS package repository index generator"
 readme = {text = "Aeltra OS package repository index generator", content-type = "text/plain"}
-license = "MIT"
+license = {text = "MIT"}
 authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
 keywords = ["Aeltra", "OS", "package", "repository", "index"]
 classifiers = [
