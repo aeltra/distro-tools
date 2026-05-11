@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeltra-image"
+description = "Aeltra OS image generator tool"
+readme = {text = "Aeltra OS image generator tool", content-type = "text/plain"}
+license = "MIT"
+authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
+keywords = ["Aeltra", "OS", "image", "generator"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/aeltra/image-generator"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+packages = ["aeltra.osimage"]
+
+[tool.setuptools.package-data]
+"aeltra.osimage" = [
+    "customize/pasteur/build-essential",
+    "customize/pasteur/minimal",
+    "package/common/tarball",
+]
+
+[tool.setuptools.data-files]
+"bin" = ["bin/aeltra-image"]

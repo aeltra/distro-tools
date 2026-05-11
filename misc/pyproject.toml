@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeltra-misc"
+description = "Python modules shared between Aeltra OS Python projects"
+readme = {text = "Python modules shared between Aeltra OS Python projects", content-type = "text/plain"}
+license = "MIT"
+authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
+keywords = ["Aeltra", "OS", "shared", "modules"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/aeltra/aeltra-distro-tools"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+packages = [
+    "aeltra",
+    "aeltra.miscellaneous",
+]

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeltra-ffi-libarchive"
+description = "Python 3 ffi bindings to libarchive"
+readme = {text = "Python 3 ffi bindings to libarchive", content-type = "text/plain"}
+license = "MIT"
+authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
+keywords = ["libarchive", "bindings", "ffi"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Archiving",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/aeltra/aeltra-distro-tools"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+packages = ["aeltra.ffi"]

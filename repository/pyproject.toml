@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeltra-repository"
+description = "Aeltra OS package repository index generator"
+readme = {text = "Aeltra OS package repository index generator", content-type = "text/plain"}
+license = "MIT"
+authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
+keywords = ["Aeltra", "OS", "package", "repository", "index"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/aeltra/distro-tools"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+packages = ["aeltra.repository"]
+
+[tool.setuptools.data-files]
+"bin" = ["bin/aeltra-repo-index"]

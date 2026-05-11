@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeltra-distro-info"
+description = "Aeltra OS distro info"
+readme = {text = "Aeltra OS distro info", content-type = "text/plain"}
+license = "MIT"
+authors = [{name = "Tobias Koch", email = "tobias.koch@gmail.com"}]
+keywords = ["Aeltra", "OS", "distro", "versions", "releases", "mirrors"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/aeltra/aeltra-distro-tools"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+packages = [
+    "aeltra.distro.config",
+    "aeltra.distro.config.v1",
+]
+
+[tool.setuptools.data-files]
+"bin" = ["bin/aeltra-distro-info"]
