@@ -38,6 +38,7 @@ sys.path.insert(1, INSTALL_DIR + os.sep + 'lib')
 from aeltra.distro.config.cli import (
     Cli as DistroInfoCli, EXIT_OK, EXIT_ERROR
 )
+from aeltra.error import AeltraError
 from aeltra.distro.config.error import DistroInfoError
 from aeltra.miscellaneous.logformatter import LogFormatter
 
@@ -128,7 +129,7 @@ if __name__ == "__main__":
             sys.exit(EXIT_ERROR)
 
         getattr(di, command)(*args)
-    except DistroInfoError as e:
+    except AeltraError as e:
         LOGGER.error(e)
         sys.exit(EXIT_ERROR)
     except KeyboardInterrupt:
