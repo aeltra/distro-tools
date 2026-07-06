@@ -23,13 +23,19 @@ Homepage = "https://github.com/aeltra/image-generator"
 
 [tool.setuptools]
 package-dir = {"" = "lib"}
-packages = ["aeltra.osimage"]
+packages = [
+    "aeltra.osimage",
+    "aeltra.osimage.customize.pasteur",
+    "aeltra.osimage.package.common",
+]
 
 [tool.setuptools.package-data]
-"aeltra.osimage" = [
-    "customize/pasteur/build-essential",
-    "customize/pasteur/minimal",
-    "package/common/tarball",
+"aeltra.osimage.customize.pasteur" = [
+    "build-essential",
+    "minimal",
+]
+"aeltra.osimage.package.common" = [
+    "tarball",
 ]
 
 [tool.setuptools.data-files]

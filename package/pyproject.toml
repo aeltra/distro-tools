@@ -26,14 +26,18 @@ package-dir = {"" = "lib"}
 packages = [
     "aeltra.package",
     "aeltra.package.aeltrapack",
+    "aeltra.package.aeltrapack.helpers",
+    "aeltra.package.aeltrapack.relaxng",
     "aeltra.package.deb2aeltra",
 ]
 
 [tool.setuptools.package-data]
-"aeltra.package.aeltrapack" = [
-    "helpers/python.sh",
-    "helpers/arch.sh",
-    "relaxng/package.rng.xml",
+"aeltra.package.aeltrapack.helpers" = [
+    "python.sh",
+    "arch.sh",
+]
+"aeltra.package.aeltrapack.relaxng" = [
+    "package.rng.xml",
 ]
 
 [tool.setuptools.data-files]
