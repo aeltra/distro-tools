@@ -150,6 +150,30 @@ class SourcePackage(BasePackage):
     def build_dependencies(self):
         return self.relations["requires"]
 
+    def fetch_sources(self, source_cache=None):
+        """Retrieve all source archives without unpacking or patching them.
+
+        This is the download-only half of `unpack`. It exists so that a build
+        running in a sandbox can pull everything it needs while it still has
+        network access and then complete the build offline, with `unpack`
+        served entirely from the local candidates and the source cache.
+        """
+        for source, upstream_source, subdir, sha256sum in self.sources:
+            archive_file = self._retrieve_archive_file(
+                source,
+                upstream_source,
+                sha256sum,
+                source_cache=source_cache,
+            )
+
+            if not (archive_file and os.path.isfile(archive_file)):
+                msg = "source archive for '%s' not found." % source
+                raise PackagingError(msg)
+        #end for
+
+        return self
+    #end function
+
     def unpack(self, source_dir=".", source_cache=None):
         for source, upstream_source, subdir, sha256sum in self.sources:
             archive_file = self._retrieve_archive_file(

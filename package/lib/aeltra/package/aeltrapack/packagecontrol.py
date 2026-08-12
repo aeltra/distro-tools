@@ -46,6 +46,14 @@ LOGGER = logging.getLogger(__name__)
 
 class PackageControl:
 
+    # Actions that don't produce any part of the package and therefore neither
+    # honour the skip marker nor require the build dependencies to be present.
+    NO_BUILD_ACTIONS = {"list_deps", "mk_build_deps", "unpack", "clean"}
+
+    # Actions that must not run for a package marked to be skipped, but that
+    # don't touch the build dependencies either.
+    NO_DEPS_ACTIONS = {"fetch_sources"}
+
     def __init__(self, filename, cache_dir=None, **kwargs):
         self.parms = {
             "arch":
@@ -284,7 +292,7 @@ class PackageControl:
     #end function
 
     def __call__(self, action):
-        if action not in {"list_deps", "mk_build_deps", "unpack", "clean"}:
+        if action not in self.NO_BUILD_ACTIONS:
             if self.src_pkg.skip:
                 raise SkipBuild(
                     'package is marked to be skipped unless "{}".'
@@ -296,7 +304,8 @@ class PackageControl:
             if action == "would_build":
                 return
 
-            if not self.parms.get("ignore_deps"):
+            if action not in self.NO_DEPS_ACTIONS and \
+                    not self.parms.get("ignore_deps"):
                 missing_deps = self._missing_build_dependencies()
                 if missing_deps.list:
                     msg = "missing dependencies: {}".format(missing_deps)
@@ -328,16 +337,16 @@ class PackageControl:
     def list_deps(self):
         print(self.src_pkg.build_dependencies())
 
+    def fetch_sources(self):
+        self.src_pkg.fetch_sources(source_cache=self._source_cache())
+
     def unpack(self):
         directory = self.defines["AELTRA_WORK_DIR"]
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        source_cache = SourceCache(self._cache_dir, self.parms["release"],
-                force_local=self.parms["force_local"])
-
         self.src_pkg \
-            .unpack(directory, source_cache=source_cache) \
+            .unpack(directory, source_cache=self._source_cache()) \
             .patch(directory)
     #end function
 
@@ -394,6 +403,10 @@ class PackageControl:
     #end function
 
     # PRIVATE
+
+    def _source_cache(self):
+        return SourceCache(self._cache_dir, self.parms["release"],
+                force_local=self.parms["force_local"])
 
     def _missing_build_dependencies(self):
         unfulfilled_dependency_spec = BasePackage.DependencySpecification()

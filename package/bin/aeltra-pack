@@ -104,6 +104,12 @@ def print_usage():
 
           -o, --outdir=<dir>   Place resulting binary packages in this directory.
 
+          --fetch-sources      Download all source archives to the cache,
+                               without unpacking or patching them. Use this
+                               to prime the cache, so that a subsequent
+                               build can run with --force-local and without
+                               network access.
+
           -u, --unpack         Unpack and patch the sources.
           -p, --prepare        Run the prepare target defined in the rules file.
           -b, --build          Run the build target defined in the rules file.
@@ -168,6 +174,7 @@ def parse_cmd_line():
             "build-for=",
             "disable-packages=",
             "enable-packages=",
+            "fetch-sources",
             "force-local",
             "help",
             "list-deps",
@@ -207,6 +214,9 @@ def parse_cmd_line():
                 break
             if case("--enable-packages"):
                 config["enable_packages"] = [x.strip() for x in v.split(",")]
+                break
+            if case("--fetch-sources"):
+                config["action"] = "fetch_sources"
                 break
             if case("--force-local"):
                 config["force_local"] = True
