@@ -57,6 +57,7 @@ def print_usage():
 
           -h --help              Print this help message.
           --force-full           Force a full update ignoring existing Packages files.
+          --force-sign           Re-sign the index even if nothing changed.
           --sign-with <keyfile>  Sign the Packages.gz file with the given usign key.
         """
     ))
@@ -66,12 +67,13 @@ def parse_cmd_line():
     # define default configuration
     config = {
        "force_full": False,
+       "force_sign": False,
        "sign_with": None
     }
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "force-full",
-            "sign-with="])
+            "force-sign", "sign-with="])
     except getopt.GetoptError as e:
         raise InvocationError("Error parsing command line: %s" % str(e))
 
@@ -84,29 +86,39 @@ def parse_cmd_line():
             if case("--force-full"):
                 config["force_full"] = True
                 break
+            if case("--force-sign"):
+                config["force_sign"] = True
+                break
             if case("--sign-with"):
                 config["sign_with"] = v.strip()
                 break
         #end switch
     #end for
 
+    if config["force_sign"] and not config["sign_with"]:
+        raise InvocationError(
+                "--force-sign has no effect without --sign-with.")
+
     return config, args
 #end function
 
 if __name__ == "__main__":
-    # PARSE CMD LINE
-    options, args = parse_cmd_line()
-
-    if len(args) != 1:
-        print_usage()
-        sys.exit(AELTRA_ERR_INVOCATION)
-    #end if
-
-    repo_dir = args[0]
-
     try:
+        # PARSE CMD LINE
+        options, args = parse_cmd_line()
+
+        if len(args) != 1:
+            print_usage()
+            sys.exit(AELTRA_ERR_INVOCATION)
+        #end if
+
+        repo_dir = args[0]
+
         indexer = RepoIndexer(repo_dir, **options)
         indexer.update_package_index()
+    except InvocationError as e:
+        sys.stderr.write("aeltra-repo-index: %s\n" % str(e))
+        sys.exit(AELTRA_ERR_INVOCATION)
     except AeltraError as e:
         sys.stderr.write("aeltra-repo-index: %s\n" % str(e))
         sys.exit(AELTRA_ERR_RUNTIME)

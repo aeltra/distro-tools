@@ -47,12 +47,14 @@ from aeltra.package.aeltrapack.debianpackagemetadata \
 
 class RepoIndexer:
 
-    def __init__(self, repo_dir, force_full=False, sign_with=None):
+    def __init__(self, repo_dir, force_full=False, force_sign=False,
+            sign_with=None):
         if not os.path.isdir(repo_dir):
             raise NotFound("path '%s' does not exists or is not a directory."
                     % repo_dir)
 
         self._force_full = force_full
+        self._force_sign = force_sign
         self._repo_dir   = repo_dir
         self._sign_with  = sign_with
     #end function
@@ -162,7 +164,11 @@ class RepoIndexer:
 
         changed = True
 
-        if current_digest is not None:
+        # force_sign republishes an index whose content has not changed, so
+        # that a periodic re-signing job can refresh the signature without a
+        # full rescan.  It is deliberately not implied by force_full, which
+        # governs scanning rather than publishing.
+        if current_digest is not None and not self._force_sign:
             h = hashlib.sha256()
             h.update(byte_output)
             if h.hexdigest() == current_digest:
