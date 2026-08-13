@@ -45,6 +45,11 @@ from aeltra.miscellaneous.xpkg import BaseXpkg
 from aeltra.package.aeltrapack.debianpackagemetadata \
         import DebianPackageMetaData
 
+# Binary package extension, as produced by DebianPackage.pkg_filename().  Named
+# rather than spelled out, because scan() has to both match it and strip it,
+# and the two drifted apart when the extension changed length.
+PACKAGE_SUFFIX = ".aeltra"
+
 class RepoIndexer:
 
     def __init__(self, repo_dir, force_full=False, force_sign=False,
@@ -276,11 +281,12 @@ class RepoIndexer:
 
         for path, dirs, files in os.walk(self._repo_dir, followlinks=True):
             for filename in files:
-                if not filename.endswith(".aeltra"):
+                if not filename.endswith(PACKAGE_SUFFIX):
                     continue
 
                 try:
-                    name, version, arch = filename[:-5].rsplit("_")
+                    name, version, arch = \
+                        filename[:-len(PACKAGE_SUFFIX)].rsplit("_")
                 except ValueError:
                     continue
 
