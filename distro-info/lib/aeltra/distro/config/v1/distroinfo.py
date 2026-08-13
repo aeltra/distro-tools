@@ -24,12 +24,9 @@
 #
 
 import collections
-import contextlib
-import fcntl
 import json
 import os
 import re
-import urllib.request
 
 from aeltra.miscellaneous.downloader import Downloader
 from aeltra.miscellaneous.userinfo import UserInfo
@@ -81,8 +78,8 @@ class DistroInfo:
             is_unstable  = distro_status == "unstable"
 
             if (
-                (supported   and is_supported) or
-                (unstable    and is_unstable)  or
+                (supported and is_supported) or
+                (unstable and is_unstable) or
                 (unsupported and not (is_supported or is_unstable))
             ):
                 result.append(release_data)
