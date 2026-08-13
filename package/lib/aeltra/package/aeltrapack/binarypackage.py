@@ -41,7 +41,6 @@ from aeltra.package.aeltrapack.packagedesc import PackageDescription
 from aeltra.package.aeltrapack.filestats import FileStats
 
 from aeltra.miscellaneous.braceexpand import braceexpand
-from aeltra.miscellaneous.packagemanager import PackageManager
 from aeltra.miscellaneous.platform import Platform
 from aeltra.miscellaneous.switch import switch
 
@@ -125,7 +124,6 @@ class BinaryPackage(BasePackage):
 
             for pkg_node in dep_node.findall(".//package"):
                 dep_version = pkg_node.get("version", "").strip()
-                dep_name    = pkg_node.get("name").strip()
 
                 if dep_version.endswith("=="):
                     pkg_node.attrib["version"] = dep_version[:-1] \

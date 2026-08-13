@@ -478,7 +478,7 @@ class FilterParser:
                 "description":
                     "Test recursion limit.",
                 "expression":
-                    "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((",
+                    "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((",  # noqa
                 "expected":
                     "expression generates too many levels of recursion"
             },

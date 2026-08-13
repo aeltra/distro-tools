@@ -165,7 +165,9 @@ class SourceCache:
             )
 
         if sha256sum and sha256sum != h.hexdigest():
-            raise AeltraError("file {} has invalid checksum!".format(target_url))
+            raise AeltraError(
+                "file {} has invalid checksum!".format(target_url)
+            )
 
         return target_url
     #end function
@@ -206,7 +208,9 @@ class SourceCache:
             )
 
         if sha256sum and sha256sum != h.hexdigest():
-            raise AeltraError("file {} has invalid checksum!".format(target_url))
+            raise AeltraError(
+                "file {} has invalid checksum!".format(target_url)
+            )
 
         return target_url
     #end function
