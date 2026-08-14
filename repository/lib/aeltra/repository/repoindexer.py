@@ -26,7 +26,6 @@
 import os
 import re
 import stat
-import shlex
 import subprocess
 import hashlib
 import functools
@@ -384,11 +383,13 @@ class RepoIndexer:
             tempfile.write(data)
             tempfile.flush()
 
-            sign_cmd = shlex.split(
-                "usign -S -m '{}' -s '{}' -x -".format(
-                    tempfile.name, self._sign_with
-                )
-            )
+            sign_cmd = [
+                "usign",
+                "-S",
+                "-m", tempfile.name,
+                "-s", self._sign_with,
+                "-x", "-"
+            ]
             try:
                 proc = subprocess.run(
                     sign_cmd,
