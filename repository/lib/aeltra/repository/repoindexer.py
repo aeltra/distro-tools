@@ -31,6 +31,7 @@ import hashlib
 import functools
 import locale
 
+from datetime import datetime, timedelta, timezone
 from tempfile import TemporaryDirectory, NamedTemporaryFile
 
 import aeltra.ffi.libarchive as libarchive
@@ -48,6 +49,22 @@ from aeltra.package.aeltrapack.debianpackagemetadata \
 # rather than spelled out, because scan() has to both match it and strip it,
 # and the two drifted apart when the extension changed length.
 PACKAGE_SUFFIX = ".aeltra"
+
+# The package index opens with a stanza carrying repository metadata rather
+# than a package.  It is covered by the signature, which is the entire point:
+# a Date an attacker can rewrite does not establish anything, so serving a
+# stale index would stay undetectable.
+INDEX_ORIGIN = "Aeltra"
+
+# How long an index remains valid.  A periodic re-signing job has to republish
+# well inside this window (see force_sign), because an archive that receives no
+# uploads never republishes on its own.
+INDEX_VALIDITY_DAYS = 7
+
+# UTC and fixed width, so that two timestamps can be compared as plain strings
+# without parsing a date.  The client side needs exactly that: is the index it
+# just fetched older than the one it already has?
+INDEX_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 class RepoIndexer:
 
@@ -96,10 +113,22 @@ class RepoIndexer:
             for entry in archive:
                 buf = archive.read_data()
 
-        h = hashlib.sha256()
-        h.update(buf)
-
         text = buf.decode("utf-8")
+        header, packages_text = RepoIndexer._split_index_header(text)
+
+        # The digest covers the package stanzas alone, never the header.  The
+        # header carries a Date that differs on every run, so hashing it would
+        # report a change every time and republish an index whose packages are
+        # byte for byte identical.  store_package_index() hashes the same
+        # subset, or the two could never match.
+        #
+        # An index predating the header reports an empty digest, which matches
+        # nothing and so forces exactly one republish to introduce it.  Without
+        # that, a quiet archive would keep serving a headerless index forever.
+        h = hashlib.sha256()
+        h.update(packages_text.encode("utf-8"))
+        digest = h.hexdigest() if header else ""
+
         index = {}
 
         for entry in re.split(r"\n\n+", text, flags=re.MULTILINE):
@@ -114,7 +143,7 @@ class RepoIndexer:
             index.setdefault(name, {})[version] = meta_data
         #end for
 
-        return index, h.hexdigest()
+        return index, digest
     #end function
 
     def prune_package_index(self, index):
@@ -141,7 +170,12 @@ class RepoIndexer:
         if not meta_data_list:
             return
 
-        text_output = "\n".join([str(entry) for entry in meta_data_list])
+        packages_output = "\n".join([str(entry) for entry in meta_data_list])
+
+        # The signature covers the header as well as the packages.  The change
+        # detection below deliberately looks at the packages alone -- see
+        # load_package_index().
+        text_output = self._make_index_header() + "\n" + packages_output
         byte_output = text_output.encode("utf-8")
 
         signature = None
@@ -174,7 +208,7 @@ class RepoIndexer:
         # governs scanning rather than publishing.
         if current_digest is not None and not self._force_sign:
             h = hashlib.sha256()
-            h.update(byte_output)
+            h.update(packages_output.encode("utf-8"))
             if h.hexdigest() == current_digest:
                 changed = False
 
@@ -374,6 +408,43 @@ class RepoIndexer:
             for chunk in iter(lambda: f.read(4096), b""):
                 h.update(chunk)
         return h.hexdigest()
+    #end function
+
+    def _make_index_header(self):
+        now = datetime.now(timezone.utc)
+        valid_until = now + timedelta(days=INDEX_VALIDITY_DAYS)
+
+        # Assembled by hand rather than through DebianPackageMetaData, whose
+        # __str__ emits only RELEVANT_KEYS and would drop all three of these
+        # without saying so.  None of the field names may collide with the
+        # ones a consumer keys a package on -- Package, Source, Version --
+        # because a consumer identifies this stanza by their absence.
+        return (
+            "Origin: {origin}\n"
+            "Date: {date}\n"
+            "Valid-Until: {valid_until}\n"
+        ).format(
+            origin=INDEX_ORIGIN,
+            date=now.strftime(INDEX_TIMESTAMP_FORMAT),
+            valid_until=valid_until.strftime(INDEX_TIMESTAMP_FORMAT)
+        )
+    #end function
+
+    @staticmethod
+    def _split_index_header(text):
+        """Split a leading repository metadata stanza off an index.
+
+        Returns a (header, packages) pair.  The header is empty for an index
+        that opens directly with a package, which is what every index written
+        before this stanza existed looks like.
+        """
+        parts = re.split(r"\n\n+", text, maxsplit=1)
+
+        if len(parts) == 2 and not re.search(
+                r"^Package:", parts[0], flags=re.MULTILINE):
+            return parts[0], parts[1]
+
+        return "", text
     #end function
 
     def _create_usign_signature(self, data):
