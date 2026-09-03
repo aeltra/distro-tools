@@ -51,39 +51,54 @@ class BaseXpkg:
         self.packages = {}
         self.preferred_encoding = locale.getpreferredencoding(False)
 
+        for stanza in self._read_stanzas():
+            self._add_stanza(stanza)
+    #end function
+
+    def _read_stanzas(self):
+        """Yield the control stanzas of all packages known to the package
+        manager, one string per package."""
         with open(self.STATUS_FILE, "r", encoding="utf-8") as fp:
             buf = fp.read()
 
-        package_list = re.split(r"\n\n+", buf, flags=re.MULTILINE)
+        for stanza in re.split(r"\n\n+", buf, flags=re.MULTILINE):
+            yield stanza
+    #end function
 
-        for pkg in package_list:
-            meta_data = {}
+    def _is_installed(self, status):
+        return bool(
+            re.match(r"install\s+(?:ok|user)\s+installed", status)
+        )
+    #end function
 
-            for line in pkg.splitlines():
-                m = re.match(
-                    r"^(Package|Version|Provides|Status):\s*(.*)",
-                    line
-                )
-                if m:
-                    meta_data[m.group(1).lower()] = m.group(2).strip()
-            #end for
+    def _add_stanza(self, stanza):
+        meta_data = {}
 
-            if re.match(r"install\s+(?:ok|user)\s+installed",
-                    meta_data.get("status", "")):
-                self.packages[meta_data["package"]] = meta_data["version"]
-
-                if "provides" in meta_data:
-                    provides = [
-                        p.strip() for p in meta_data["provides"].split(",")
-                    ]
-                    for name in provides:
-                        if name not in self.packages:
-                            self.packages[name] = meta_data["version"]
-                    #end for
-                #end if
-            #end if
+        for line in stanza.splitlines():
+            m = re.match(
+                r"^(Package|Version|Provides|Status):\s*(.*)",
+                line
+            )
+            if m:
+                meta_data[m.group(1).lower()] = m.group(2).strip()
         #end for
 
+        if "package" not in meta_data or "version" not in meta_data:
+            return
+        if not self._is_installed(meta_data.get("status", "")):
+            return
+
+        self.packages[meta_data["package"]] = meta_data["version"]
+
+        if "provides" in meta_data:
+            provides = [
+                p.strip() for p in meta_data["provides"].split(",")
+            ]
+            for name in provides:
+                if name not in self.packages:
+                    self.packages[name] = meta_data["version"]
+            #end for
+        #end if
     #end function
 
     def installed_version_of_package(self, package_name):
@@ -239,10 +254,45 @@ class Dpkg(BaseXpkg):
 #end class
 
 class Aept(BaseXpkg):
-    STATUS_FILE = '/var/lib/aept/status'
+    INFO_DIR = '/var/lib/aept/info'
 
     def __init__(self):
         super().__init__()
+
+    def _read_stanzas(self):
+        # aept keeps no single status file; each installed package has a
+        # "<name>.control" stanza in the info directory.
+        try:
+            entries = sorted(os.listdir(self.INFO_DIR))
+        except FileNotFoundError:
+            return
+
+        for entry in entries:
+            if not entry.endswith(".control"):
+                continue
+            path = os.path.join(self.INFO_DIR, entry)
+            try:
+                with open(path, "r", encoding="utf-8") as fp:
+                    yield fp.read()
+            except OSError:
+                continue
+        #end for
+    #end function
+
+    def _is_installed(self, status):
+        # Like aept itself, treat "unpacked" and "triggers-pending" as
+        # present: the package's files are on disk. Control files written
+        # by older aept versions carry no Status line at all and are
+        # installed.
+        if not status:
+            return True
+        return bool(
+            re.match(
+                r"install\s+ok\s+(?:installed|unpacked|triggers-pending)",
+                status
+            )
+        )
+    #end function
 
     def which_package_provides(self, filename):
         abspath = os.path.abspath(filename)
