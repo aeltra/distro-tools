@@ -26,7 +26,6 @@
 import logging
 import os
 import re
-import shlex
 import shutil
 import textwrap
 
@@ -217,10 +216,9 @@ class ImageGenerator:
         for file_ in files_to_copy:
             shutil.copy2(file_, sysroot + file_)
 
-        aept_cmd = shlex.split(
-            "aept -o '{}' update"
-            .format(sysroot)
-        )
+        aept_cmd = ["aept", "-o", sysroot]
+        aept_cmd += self._aept_options(sysroot)
+        aept_cmd += ["update"]
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd)
     #end function
 
@@ -240,6 +238,7 @@ class ImageGenerator:
             parts = SpecfileParser.load(f)
 
         env = self._prepare_environment(sysroot)
+        aept_options = self._aept_options(sysroot)
 
         for start_line, end_line, p in parts:
             what = re.sub(
@@ -253,7 +252,7 @@ class ImageGenerator:
                 )
             )
 
-            p.apply(sysroot, env=dict(env))
+            p.apply(sysroot, env=dict(env), aept_options=aept_options)
         #end for
     #end function
 
@@ -264,10 +263,9 @@ class ImageGenerator:
         sysroot = os.path.realpath(sysroot)
 
         if os.path.exists(sysroot + "/usr/bin/aept"):
-            aept_cmd = shlex.split(
-                "aept -o '{}' clean"
-                .format(sysroot)
-            )
+            aept_cmd = ["aept", "-o", sysroot]
+            aept_cmd += self._aept_options(sysroot)
+            aept_cmd += ["clean"]
 
             Subprocess.run(sysroot, aept_cmd[0], aept_cmd, check=False)
         #end if
@@ -312,6 +310,13 @@ class ImageGenerator:
     #end function
 
     # HELPERS
+
+    def _aept_options(self, sysroot):
+        """Extra CLI arguments to splice into every aept invocation the
+        framework makes against `sysroot`.  Base returns none; subclasses
+        override to inject things like `--cache-dir <host-path>`."""
+        return []
+    #end function
 
     def _prepare_environment(self, sysroot):
         env = {}

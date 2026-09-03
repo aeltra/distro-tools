@@ -25,7 +25,6 @@
 
 import os
 import re
-import shlex
 import tempfile
 
 from aeltra.error import AeltraError
@@ -82,7 +81,7 @@ class PackageBatch:
     def __init__(self, packages):
         self.batch = packages
 
-    def apply(self, sysroot, env=None, **options):
+    def apply(self, sysroot, env=None, aept_options=None, **options):
         if "AELTRA_SYSROOT" in env:
             del env["AELTRA_SYSROOT"]
 
@@ -101,7 +100,9 @@ class PackageBatch:
                 finished = True
 
             if mode != active_mode or finished:
-                self._apply_batch(sysroot, env, active_mode, active_batch)
+                self._apply_batch(
+                    sysroot, env, active_mode, active_batch, aept_options
+                )
 
                 if finished:
                     break
@@ -114,17 +115,17 @@ class PackageBatch:
         #end for
     #end function
 
-    def _apply_batch(self, sysroot, env, mode, packages):
+    def _apply_batch(self, sysroot, env, mode, packages, aept_options=None):
         if not packages:
             return
 
         mode = "install" if mode == "+" else "remove"
 
-        aept_cmd = shlex.split(
-            "aept -o '{}' {} {}".format(
-                sysroot, mode, ' '.join(packages)
-            )
-        )
+        aept_cmd = ["aept", "-o", sysroot]
+        if aept_options:
+            aept_cmd += list(aept_options)
+        aept_cmd += [mode] + list(packages)
+
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd, env=env)
     #end function
 
