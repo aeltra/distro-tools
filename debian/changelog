@@ -1,3 +1,12 @@
+aeltra-distro-tools (1.12.0-1) unstable; urgency=medium
+
+  * image-gen: new _aept_options() hook on ImageGenerator lets a
+    subclass inject extra CLI arguments (e.g. --cache-dir) into every
+    aept invocation the framework makes on a sysroot. Threaded through
+    prepare(), customize(), cleanup() and PackageBatch.apply().
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 04 Sep 2026 01:24:38 +0300
+
 aeltra-distro-tools (1.11.1-1) unstable; urgency=medium
 
   * packagecontrol: build-deps package uses source package dependencies
