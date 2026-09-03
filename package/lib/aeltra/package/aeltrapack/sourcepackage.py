@@ -291,31 +291,31 @@ class SourcePackage(BasePackage):
 
     def _retrieve_archive_file(self, source, upstream_source, sha256sum,
             source_cache):
-        src_xml_dir = os.path.join(
-            self.basedir, "archive", self.name, self.version
-        )
-        source_file = os.path.join(src_xml_dir, source)
+        # The working directory is where the build tree lives and where
+        # source archives are placed "as if downloaded". The recipe
+        # directory is checked first so that a self-contained recipe wins.
+        source_dir  = os.path.join("archive", self.name, self.version)
+        source_copy = os.path.join(source_dir, source)
 
-        if not os.path.exists(source_file):
-            source_file = None
-        else:
-            LOGGER.info(
-                "found local candidate {}, computing checksum."
-                .format(source_file)
-            )
+        candidates = [
+            os.path.join(self.basedir, source_dir, source),
+            source_copy,
+        ]
 
-            h = hashlib.sha256()
-            with open(source_file, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    h.update(chunk)
+        source_file = None
+        seen        = set()
 
-            if sha256sum != h.hexdigest():
-                raise PackagingError(
-                    "local candidate {} has incorrect checksum, aborting."
-                )
+        for candidate in candidates:
+            real_path = os.path.realpath(candidate)
+            if real_path in seen:
+                continue
 
-            LOGGER.info("using local candidate {}".format(source_file))
-        #end if
+            seen.add(real_path)
+
+            if self._verify_local_candidate(candidate, sha256sum):
+                source_file = candidate
+                break
+        #end for
 
         if not source_file:
             source_file = source_cache.find_and_retrieve(
@@ -331,27 +331,60 @@ class SourcePackage(BasePackage):
         #end if
 
         if source_file and self.copy_archives:
-            local_dir  = os.path.join(".", "archive", self.name, self.version)
-            local_file = os.path.join(local_dir, source)
-
-            os.makedirs(local_dir, exist_ok=True)
+            os.makedirs(source_dir, exist_ok=True)
             try:
                 if os.path.realpath(source_file) != \
-                        os.path.realpath(local_file):
+                        os.path.realpath(source_copy):
                     LOGGER.info(
-                        "writing source archive {}".format(local_file)
+                        "writing source archive {}".format(source_copy)
                     )
-                    shutil.copyfile(source_file, local_file)
+                    shutil.copyfile(source_file, source_copy)
             except OSError as e:
                 raise PackagingError(
                     "error while copying {} from cache: {}"
                     .format(source_file, str(e))
                 )
 
-            source_file = local_file
+            source_file = source_copy
         #end if
 
         return source_file
+    #end function
+
+    def _verify_local_candidate(self, source_file, sha256sum):
+        """Return True if source_file exists and matches sha256sum. A
+        mismatch is an error: a stale or corrupt archive must not be
+        silently replaced. An empty sha256sum skips verification, like
+        the source cache does."""
+        if not os.path.isfile(source_file):
+            return False
+
+        if not sha256sum:
+            LOGGER.warning(
+                "using local candidate {} without checksum verification."
+                .format(source_file)
+            )
+            return True
+        #end if
+
+        LOGGER.info(
+            "found local candidate {}, computing checksum."
+            .format(source_file)
+        )
+
+        h = hashlib.sha256()
+        with open(source_file, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                h.update(chunk)
+
+        if sha256sum != h.hexdigest():
+            raise PackagingError(
+                "local candidate {} has incorrect checksum, aborting."
+                .format(source_file)
+            )
+
+        LOGGER.info("using local candidate {}".format(source_file))
+        return True
     #end function
 
     def _load_helpers(self):
