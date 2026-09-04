@@ -1,3 +1,20 @@
+aeltra-distro-tools (1.13.1-1) unstable; urgency=medium
+
+  * platform: new default_path() and SYSTEM_PATH/TOOLS_PATH constants are
+    the single source for the default search path, used by
+    find_executable(), the package maintainer script preamble and the
+    source package build environment.
+  * platform: only pass hardening flags the target architecture actually
+    supports, because an unsupported one makes the compiler bail out.
+    The machine is taken from AELTRA_HOST_TYPE where set, otherwise from
+    target_machine().
+  * platform: fix machine type lookup for mips64 and plain mips, which
+    previously fell through to the little-endian templates.
+  * binarypackage: fail with a proper error when chrpath is not found
+    instead of running into a TypeError.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 04 Sep 2026 22:06:28 +0300
+
 aeltra-distro-tools (1.13.0-1) unstable; urgency=medium
 
   * image-gen: new _host_env() hook on ImageGenerator lets a subclass
