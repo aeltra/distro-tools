@@ -41,9 +41,12 @@ class Script:
         self.chroot = chroot
     #end function
 
-    def apply(self, sysroot, env=None, **options):
-        if self.chroot and "AELTRA_SYSROOT" in env:
-            del env["AELTRA_SYSROOT"]
+    def apply(self, sysroot, env=None, host_env=None, **options):
+        if self.chroot:
+            if "AELTRA_SYSROOT" in env:
+                del env["AELTRA_SYSROOT"]
+        elif host_env:
+            env.update(host_env)
 
         tmp_prefix = os.path.join(sysroot, "tmp", "igen-")
 
@@ -81,7 +84,7 @@ class PackageBatch:
     def __init__(self, packages):
         self.batch = packages
 
-    def apply(self, sysroot, env=None, **options):
+    def apply(self, sysroot, env=None, aept_options=None, **options):
         if "AELTRA_SYSROOT" in env:
             del env["AELTRA_SYSROOT"]
 
@@ -100,7 +103,9 @@ class PackageBatch:
                 finished = True
 
             if mode != active_mode or finished:
-                self._apply_batch(sysroot, env, active_mode, active_batch)
+                self._apply_batch(
+                    sysroot, env, active_mode, active_batch, aept_options
+                )
 
                 if finished:
                     break
@@ -113,13 +118,14 @@ class PackageBatch:
         #end for
     #end function
 
-    def _apply_batch(self, sysroot, env, mode, packages):
+    def _apply_batch(self, sysroot, env, mode, packages, aept_options=None):
         if not packages:
             return
 
         mode = "install" if mode == "+" else "remove"
 
-        aept_cmd = ["aept", "-o", sysroot, mode] + list(packages)
+        aept_cmd = ["aept", "-o", sysroot] \
+            + list(aept_options or []) + [mode] + list(packages)
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd, env=env)
     #end function
 

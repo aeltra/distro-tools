@@ -216,7 +216,8 @@ class ImageGenerator:
         for file_ in files_to_copy:
             shutil.copy2(file_, sysroot + file_)
 
-        aept_cmd = ["aept", "-o", sysroot, "update"]
+        aept_cmd = ["aept", "-o", sysroot] \
+            + self._aept_options(sysroot) + ["update"]
         Subprocess.run(sysroot, aept_cmd[0], aept_cmd)
     #end function
 
@@ -236,6 +237,8 @@ class ImageGenerator:
             parts = SpecfileParser.load(f)
 
         env = self._prepare_environment(sysroot)
+        aept_options = self._aept_options(sysroot)
+        host_env = self._host_env(sysroot)
 
         for start_line, end_line, p in parts:
             what = re.sub(
@@ -249,7 +252,11 @@ class ImageGenerator:
                 )
             )
 
-            p.apply(sysroot, env=dict(env))
+            p.apply(
+                sysroot, env=dict(env),
+                aept_options=aept_options,
+                host_env=host_env,
+            )
         #end for
     #end function
 
@@ -260,7 +267,8 @@ class ImageGenerator:
         sysroot = os.path.realpath(sysroot)
 
         if os.path.exists(sysroot + "/usr/bin/aept"):
-            aept_cmd = ["aept", "-o", sysroot, "clean"]
+            aept_cmd = ["aept", "-o", sysroot] \
+                + self._aept_options(sysroot) + ["clean"]
             Subprocess.run(sysroot, aept_cmd[0], aept_cmd, check=False)
         #end if
 
@@ -304,6 +312,12 @@ class ImageGenerator:
     #end function
 
     # HELPERS
+
+    def _aept_options(self, sysroot):
+        return []
+
+    def _host_env(self, sysroot):
+        return {}
 
     def _prepare_environment(self, sysroot):
         env = {}
