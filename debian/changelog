@@ -1,3 +1,13 @@
+aeltra-distro-tools (1.13.0-1) unstable; urgency=medium
+
+  * image-gen: new _host_env() hook on ImageGenerator lets a subclass
+    inject env vars that reach only host-side scripts. Threaded through
+    customize() into Script.apply(), which merges the dict when the
+    script's shebang did not request the chroot; chroot scripts never
+    see it.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 04 Sep 2026 10:28:06 +0300
+
 aeltra-distro-tools (1.12.0-1) unstable; urgency=medium
 
   * image-gen: new _aept_options() hook on ImageGenerator lets a
