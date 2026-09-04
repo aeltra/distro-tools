@@ -425,7 +425,7 @@ class SourcePackage(BasePackage):
         )
 
         if env.get("PATH") is None:
-            env["PATH"] = "/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin"
+            env["PATH"] = Platform.default_path()
 
         return env
     #end function

@@ -179,13 +179,14 @@ class BinaryPackage(BasePackage):
 
                     export AELTRA_INSTALL_PREFIX="%s"
                     export AELTRA_HOST_TYPE="%s"
-                    export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+                    export PATH="%s"
 
                     if [ -d "/tools" ]; then
-                        export PATH="/tools/sbin:/tools/bin:$PATH"
+                        export PATH="%s:$PATH"
                     fi
 
-                    """ % (self.install_prefix, self.host_type)  # noqa
+                    """ % (self.install_prefix, self.host_type,
+                           Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
 
                 ) + etree.tostring(node, method="text", encoding="unicode")
             #end if
@@ -215,13 +216,14 @@ class BinaryPackage(BasePackage):
 
                 export AELTRA_INSTALL_PREFIX="%s"
                 export AELTRA_HOST_TYPE="%s"
-                export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+                export PATH="%s"
 
                 if [ -d "/tools" ]; then
-                    export PATH="/tools/sbin:/tools/bin:$PATH"
+                    export PATH="%s:$PATH"
                 fi
 
-                """ % (self.install_prefix, self.host_type)  # noqa
+                """ % (self.install_prefix, self.host_type,
+                       Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
 
             ) + etree.tostring(
                 script_node, method="text", encoding="unicode"
@@ -504,6 +506,11 @@ class BinaryPackage(BasePackage):
             for cmd, check_retval in cmd_list:
                 subprocess.run(cmd, stderr=subprocess.STDOUT,
                         check=check_retval)
+
+            if not chrpath:
+                raise PackagingError(
+                    "unable to find the chrpath executable."
+                )
 
             subprocess.run(
                 [chrpath, "-c", src_path ],

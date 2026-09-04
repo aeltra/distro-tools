@@ -36,6 +36,16 @@ class Platform:
     CONFIG_GUESS           = "/usr/share/misc/config.guess"
     LIBC_NAME_FILE         = "/usr/share/misc/libc.name"
     AEPT_MUSL_CONTROL_FILE = "/var/lib/aept/info/musl-libc.control"
+    SYSTEM_PATH            = \
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    TOOLS_PATH             = "/tools/sbin:/tools/bin"
+
+    STACK_CLASH_MACHINES = [
+        "aarch64", "i686", "powerpc", "powerpc64le", "s390x", "x86_64"
+    ]
+
+    CF_PROTECTION_MACHINES     = ["i686", "x86_64"]
+    BRANCH_PROTECTION_MACHINES = ["aarch64"]
 
     @staticmethod
     def config_guess():
@@ -68,17 +78,19 @@ class Platform:
     #end function
 
     @staticmethod
+    def default_path():
+        result = Platform.SYSTEM_PATH
+
+        if os.path.isdir("/tools"):
+            result = Platform.TOOLS_PATH + ":" + result
+
+        return result
+    #end function
+
+    @staticmethod
     def find_executable(executable_name, fallback=None):
-        search_path = os.environ.get("PATH", "").split(os.pathsep) + [
-            "/tools/bin",
-            "/tools/sbin",
-            "/usr/local/bin",
-            "/usr/local/sbin",
-            "/bin",
-            "/sbin",
-            "/usr/bin",
-            "/usr/sbin"
-        ]
+        search_path = os.environ.get("PATH", "").split(os.pathsep) + \
+            Platform.default_path().split(os.pathsep)
 
         for path in search_path:
             location = os.path.join(path, executable_name)
@@ -102,40 +114,56 @@ class Platform:
             file_prefix_map = \
                 " -ffile-prefix-map=" + env["AELTRA_BUILD_DIR"] + "=."
 
+        # Not every hardening feature is available on every architecture and
+        # passing an unsupported one makes the compiler bail out.
+        machine = Platform.machine_name()
+        if env and env.get("AELTRA_HOST_TYPE"):
+            machine = env["AELTRA_HOST_TYPE"].split("-")[0]
+
+        stack_clash = ""
+        if machine in Platform.STACK_CLASH_MACHINES:
+            stack_clash = " -fstack-clash-protection"
+
+        branch_protection = ""
+        if machine in Platform.CF_PROTECTION_MACHINES:
+            branch_protection = " -fcf-protection"
+        elif machine in Platform.BRANCH_PROTECTION_MACHINES:
+            branch_protection = " -mbranch-protection=standard"
+
         build_flags["CFLAGS"] = \
             "-g -O2 -Werror=implicit-function-declaration" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -Wformat -Werror=format-security -fcf-protection"
+            " -fstack-protector-strong" + stack_clash + \
+            " -Wformat -Werror=format-security" + branch_protection
         build_flags["CXXFLAGS"] = \
             "-g -O2" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -Wformat -Werror=format-security -fcf-protection"
+            " -fstack-protector-strong" + stack_clash + \
+            " -Wformat -Werror=format-security" + branch_protection
         build_flags["CPPFLAGS"] = \
             "-Wdate-time -D_FORTIFY_SOURCE=2"
         build_flags["FCFLAGS"] = \
             "-g -O2" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -fcf-protection"
+            " -fstack-protector-strong" + stack_clash \
+            + branch_protection
         build_flags["FFLAGS"] = \
             "-g -O2" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -fcf-protection"
+            " -fstack-protector-strong" + stack_clash \
+            + branch_protection
         build_flags["LDFLAGS"] = \
             "-Wl,-z,relro"
         build_flags["OBJCFLAGS"] = \
             "-g -O2" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -Wformat -Werror=format-security -fcf-protection"
+            " -fstack-protector-strong" + stack_clash + \
+            " -Wformat -Werror=format-security" + branch_protection
         build_flags["OBJCXXFLAGS"] = \
             "-g -O2" \
             + file_prefix_map + \
-            " -fstack-protector-strong -fstack-clash-protection" \
-            " -Wformat -Werror=format-security -fcf-protection"
+            " -fstack-protector-strong" + stack_clash + \
+            " -Wformat -Werror=format-security" + branch_protection
 
         return build_flags
     #end function
