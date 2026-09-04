@@ -116,9 +116,10 @@ class Platform:
 
         # Not every hardening feature is available on every architecture and
         # passing an unsupported one makes the compiler bail out.
-        machine = Platform.machine_name()
         if env and env.get("AELTRA_HOST_TYPE"):
             machine = env["AELTRA_HOST_TYPE"].split("-")[0]
+        else:
+            machine = Platform.target_machine()
 
         stack_clash = ""
         if machine in Platform.STACK_CLASH_MACHINES:
@@ -203,6 +204,10 @@ class Platform:
             template = "mips64el-linux-{}"
         elif re.match(r"^mips\d*el.*$", machine):
             template = "mipsel-linux-{}"
+        elif machine.startswith("mips64"):
+            template = "mips64-linux-{}"
+        elif re.match(r"^mips\d*$", machine):
+            template = "mips-linux-{}"
         elif re.match(r"^(?:powerpc64|ppc64)(?:le|el).*$", machine):
             template = "powerpc64le-linux-{}"
         elif machine.startswith("powerpc") or machine.startswith("ppc"):
