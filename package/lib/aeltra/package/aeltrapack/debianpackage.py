@@ -23,6 +23,7 @@
 # THE SOFTWARE.
 #
 
+import hashlib
 import os
 import stat
 
@@ -125,7 +126,7 @@ class DebianPackage(BinaryPackage):
         )
 
         with TemporaryDirectory(prefix="aeltra-") as tmpdir:
-            installed_size = self.write_data_part(pkg_contents,
+            installed_size, sha256sums = self.write_data_part(pkg_contents,
                     os.path.join(tmpdir, "data.tar.zst"),
                     timestamp)
 
@@ -136,7 +137,7 @@ class DebianPackage(BinaryPackage):
 
             self.write_control_part(meta_data, pkg_contents,
                     os.path.join(tmpdir, "control.tar.zst"),
-                    timestamp)
+                    timestamp, sha256sums)
 
             with open(os.path.join(tmpdir, "debian-binary"), "w+",
                     encoding="utf-8") as fp:
@@ -181,7 +182,7 @@ class DebianPackage(BinaryPackage):
     ZSTD_OPTIONS = [("zstd", "compression-level", "19")]
 
     def write_control_part(self, meta_data, pkg_contents, ctrl_abspath,
-            timestamp):
+            timestamp, sha256sums=""):
         with ArchiveFileWriter(ctrl_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
                 options=self.ZSTD_OPTIONS) as archive:
@@ -197,6 +198,12 @@ class DebianPackage(BinaryPackage):
 
             if self.triggers:
                 control_contents.append(["triggers", self.triggers, 0o644])
+
+            # One line per regular file, in sha256sum(1)'s own format, so
+            # the package manager can check what it wrote against what
+            # was built, and "sha256sum -c" in a root can do the same.
+            if sha256sums:
+                control_contents.append(["sha256sums", sha256sums, 0o644])
 
             with ArchiveEntry() as archive_entry:
                 for entry_name, entry_contents, entry_mode in control_contents:
@@ -220,7 +227,11 @@ class DebianPackage(BinaryPackage):
     #end function
 
     def write_data_part(self, pkg_contents, data_abspath, timestamp):
+        """Returns the installed size in bytes and the sha256sums text."""
         installed_size = 0
+        sha256sums = ""
+        # digest by archive path, for a hardlink's second name
+        digests = {}
 
         with ArchiveFileWriter(data_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
@@ -258,15 +269,30 @@ class DebianPackage(BinaryPackage):
 
                     archive.write_entry(archive_entry)
 
-                    if archive_entry.is_file:
+                    # write_entry turns a second name for an inode into a
+                    # hardlink entry, which carries no data of its own:
+                    # its digest is the first name's, and there is nothing
+                    # to read for it.
+                    if archive_entry.is_hardlink:
+                        digest = digests.get(archive_entry.hardlink)
+                        if digest:
+                            digests[file_path] = digest
+                            sha256sums += "{}  {}\n".format(digest,
+                                    file_path[2:])
+                    elif archive_entry.is_file:
+                        sha256 = hashlib.sha256()
                         with open(real_path, "rb") as fp:
                             while True:
                                 buf = fp.read(4096)
                                 if not buf:
                                     break
+                                sha256.update(buf)
                                 archive.write_data(buf)
                             #end while
                         #end with
+                        digest = sha256.hexdigest()
+                        digests[file_path] = digest
+                        sha256sums += "{}  {}\n".format(digest, file_path[2:])
                     #end if
 
                     # imitate behavior of dpkg-gencontrol
@@ -278,7 +304,7 @@ class DebianPackage(BinaryPackage):
             #end with
         #end with
 
-        return installed_size
+        return installed_size, sha256sums
     #end function
 
     def meta_data(self, debug_pkg=False):
