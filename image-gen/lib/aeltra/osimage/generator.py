@@ -163,7 +163,7 @@ class ImageGenerator:
         self._verify    = verify
         self._repo_base = repo_base or "http://archive.aeltra.eu/dists"
 
-        opt_check_sig = "" if self._verify else "option check_signature 0"
+        opt_check_sig = "option check_signature {}".format(1 if self._verify else 0)
         uname_m = Platform.uname("-m")
 
         tools_type = Platform.target_for_machine(uname_m, self._libc)
