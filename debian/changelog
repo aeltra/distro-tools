@@ -1,3 +1,15 @@
+aeltra-distro-tools (1.13.2-1) unstable; urgency=medium
+
+  * aeltrapack: Aeltra packages now ship a sha256sums file in their
+    control part, one line per regular file in sha256sum(1)'s format,
+    so the package manager can check what it wrote against what was
+    built. A hardlink carries the digest of the file it points to.
+  * image-gen: always set option check_signature explicitly in the
+    generated configuration, to 1 or 0, instead of relying on the
+    default when verification is enabled.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Wed, 16 Sep 2026 09:17:03 +0300
+
 aeltra-distro-tools (1.13.1-1) unstable; urgency=medium
 
   * platform: new default_path() and SYSTEM_PATH/TOOLS_PATH constants are
