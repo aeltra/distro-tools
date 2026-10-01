@@ -1,3 +1,12 @@
+aeltra-distro-tools (1.13.3-1) unstable; urgency=medium
+
+  * distro-info: fetch releases.json and mirrors.json over https. The
+    mirror list decides where the tools download packages from, so it
+    must not arrive over plain HTTP, where it could be swapped in
+    transit.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Thu, 01 Oct 2026 23:23:19 +0300
+
 aeltra-distro-tools (1.13.2-1) unstable; urgency=medium
 
   * aeltrapack: Aeltra packages now ship a sha256sums file in their
