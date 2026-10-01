@@ -35,7 +35,7 @@ from aeltra.distro.config.error import \
 
 class DistroInfo:
 
-    base_url = "http://archive.aeltra.eu/config/v1"
+    base_url = "https://archive.aeltra.eu/config/v1"
 
     def refresh(self, releases=False, mirrors=False, **kwargs):
         items_to_fetch = []
