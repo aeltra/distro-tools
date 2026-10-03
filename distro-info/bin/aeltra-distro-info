@@ -61,6 +61,7 @@ def print_usage():
           refresh              Update the releases and mirrors lists.
           list                 List releases.
           show                 Show information about a given release.
+          repositories         List the repositories of a given release.
 
         OPTIONS:
 

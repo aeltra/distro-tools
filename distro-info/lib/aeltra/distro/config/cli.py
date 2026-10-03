@@ -200,4 +200,42 @@ class Cli:
         )
     #end function
 
+    def repositories(self, *args):
+        config = copy.deepcopy(self.config)
+
+        def print_usage():
+            print(textwrap.dedent(
+                """
+                USAGE:
+
+                  aeltra-distro-info repositories [OPTIONS] <release-name>
+
+                OPTIONS:
+
+                  -h, --help           Print this help message.
+
+                Prints the names of the release's repositories, one per line.
+                """
+            ))
+
+        try:
+            opts, args = getopt.getopt(args, "h", ["help"])
+        except getopt.GetoptError as e:
+            raise DistroInfoError(
+                "error parsing command line: {}".format(str(e))
+            )
+
+        for o, v in opts:
+            if o in ["-h", "--help"]:
+                print_usage()
+                sys.exit(EXIT_OK)
+
+        if len(args) != 1:
+            print_usage()
+            sys.exit(EXIT_ERROR)
+
+        for name in DistroInfo(**config).repository_names(release=args[0]):
+            print(name)
+    #end function
+
 #end class

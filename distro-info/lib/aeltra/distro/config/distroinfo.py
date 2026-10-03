@@ -24,11 +24,13 @@
 #
 
 from aeltra.distro.config.error import DistroInfoError
-from aeltra.distro.config.v1.distroinfo import (
-    DistroInfo as DistroInfoV1
+from aeltra.distro.config.v1.distroinfo import (  # noqa: F401
+    DistroInfo as DistroInfoV1, Source
 )
 
 class DistroInfo:
+
+    POCKETS = DistroInfoV1.POCKETS
 
     def __init__(self, api_version=1, **kwargs):
         if api_version == 1:
@@ -52,6 +54,15 @@ class DistroInfo:
 
     def pick_mirror(self, **kwargs):
         return self.implementation.pick_mirror(**kwargs)
+
+    def repository_names(self, **kwargs):
+        return self.implementation.repository_names(**kwargs)
+
+    def repository_pockets(self, **kwargs):
+        return self.implementation.repository_pockets(**kwargs)
+
+    def repository_sources(self, **kwargs):
+        return self.implementation.repository_sources(**kwargs)
 
     def release_exists(self, name):
         return any(

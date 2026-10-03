@@ -25,6 +25,7 @@
 
 import collections
 import json
+import logging
 import os
 import re
 
@@ -33,9 +34,31 @@ from aeltra.miscellaneous.userinfo import UserInfo
 from aeltra.distro.config.error import \
         DistroInfoError, ReleaseNotFoundError
 
+LOGGER = logging.getLogger(__name__)
+
+# A package source: its name in aept.conf, the repository and pocket it
+# serves, and where.
+Source = collections.namedtuple(
+    "Source", ["name", "repository", "pocket", "url"]
+)
+
 class DistroInfo:
 
     base_url = "https://archive.aeltra.eu/config/v1"
+
+    # Every pocket a repository can have, in the order sources are listed.
+    # A repository has all of them unless releases.json lists its own.
+    POCKETS = ["main", "tools", "cross-tools"]
+
+    # Where a pocket lives below <mirror>/<release>/<repository>/<arch>/<libc>.
+    POCKET_PATHS = {
+        "main":
+            "main",
+        "tools":
+            "tools/{host_arch}",
+        "cross-tools":
+            "cross-tools/{host_arch}",
+    }
 
     def refresh(self, releases=False, mirrors=False, **kwargs):
         items_to_fetch = []
@@ -173,7 +196,71 @@ class DistroInfo:
         #end try
     #end function
 
+    def repository_names(self, release, **kwargs):
+        return list(self.find(release).get("repositories", {}).keys())
+
+    def repository_pockets(self, release, repository, **kwargs):
+        repo_info = self._repository_info(release, repository)
+        return list(repo_info.get("pockets", self.POCKETS))
+    #end function
+
+    def repository_sources(self, release, repositories, arch, libc,
+            host_arch, pockets, **kwargs):
+        """The package sources for the given repositories and pockets,
+        named <repository>-<pocket>. A repository that lacks a pocket is
+        skipped for it, so a build may ask for every pocket whatever the
+        repositories have."""
+        for pocket in pockets:
+            if pocket not in self.POCKETS:
+                raise DistroInfoError("unknown pocket '{}'.".format(pocket))
+        #end for
+
+        # In the order sources are listed, whatever the order asked for.
+        wanted  = [p for p in self.POCKETS if p in pockets]
+        sources = []
+
+        for repository in repositories:
+            # Before pick_mirror(): for a repository the release does not
+            # have, this one's error lists the repositories it does have.
+            repo_pockets = self.repository_pockets(release, repository)
+            mirror       = self.pick_mirror(release, repository)
+
+            for pocket in wanted:
+                if pocket not in repo_pockets:
+                    LOGGER.info(
+                        "repository '{}' has no '{}' pocket, skipping."
+                        .format(repository, pocket)
+                    )
+                    continue
+                #end if
+
+                url = "/".join([
+                    mirror, release, repository, arch, libc,
+                    self.POCKET_PATHS[pocket].format(host_arch=host_arch)
+                ])
+                sources.append(Source(
+                    "{}-{}".format(repository, pocket), repository, pocket, url
+                ))
+            #end for
+        #end for
+
+        return sources
+    #end function
+
     # HELPER
+
+    def _repository_info(self, release, repository):
+        repositories = self.find(release).get("repositories", {})
+
+        if repository not in repositories:
+            raise DistroInfoError(
+                "release '{}' has no repository '{}', it has: {}."
+                .format(release, repository, ", ".join(repositories))
+            )
+        #end if
+
+        return repositories[repository]
+    #end function
 
     def _load_json_file(self, which):
         result = collections.OrderedDict()
