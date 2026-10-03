@@ -1,3 +1,39 @@
+aeltra-distro-tools (1.14.0-1) unstable; urgency=medium
+
+  * distro-info: the package sources of a release come from here now.
+    repository_sources() lays them out as <mirror>/<release>/
+    <repository>/<arch>/<libc>/<pocket> from releases.json and
+    mirrors.json, named <repository>-<pocket>, so no tool assembles
+    archive URLs itself any more. A repository has the pockets main,
+    tools and cross-tools, unless releases.json lists its own; one
+    without a requested pocket is skipped for it, so a build may ask
+    for every pocket. An unknown repository or pocket is an error.
+    repository_names() and repository_pockets() are new as well, and
+    "aeltra-distro-info repositories <release>" lists the names.
+  * image-gen: a spec says which sources it is applied with, in a
+    preamble before any package or script section: "core" and "main"
+    always, plus what its @repositories and @pockets lines name. Each
+    spec gets exactly these, whatever earlier specs used, and the
+    lists are updated on the host, with the cache and credentials the
+    host-side aept calls get. The sources are named
+    <repository>-<pocket> instead of main, tools and cross-tools.
+  * image-gen: every spec run is recorded in /var/lib/image-gen/sources
+    in the image, and "cleanup" gives the finished image the union of
+    the sources recorded there, so that whatever was installed can be
+    kept up to date. It needs no release data for that. "cleanup
+    --repo <name>" adds a repository of the release besides, with the
+    pockets the image uses where it has them.
+  * image-gen: --repo-base is gone; a repository is named, never given
+    as a URL. build-essential declares its tools pockets with @pockets
+    instead of a chroot script that wrote plain-http sources and ran
+    "aept update" inside the image, where no credentials reach.
+  * python3-aeltra-image-gen depends on python3-aeltra-distro-info,
+    which it has imported all along.
+  * Tests: distro-info and image-gen have pytest suites now. tox runs
+    them as py3, and flake8 as lint.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 02 Oct 2026 13:38:28 +0300
+
 aeltra-distro-tools (1.13.3-1) unstable; urgency=medium
 
   * distro-info: fetch releases.json and mirrors.json over https. The

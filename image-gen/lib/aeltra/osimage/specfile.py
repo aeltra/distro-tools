@@ -27,6 +27,7 @@ import os
 import re
 import tempfile
 
+from aeltra.distro.config.distroinfo import DistroInfo
 from aeltra.error import AeltraError
 from aeltra.osimage.subprocess import Subprocess
 
@@ -137,13 +138,17 @@ class SpecfileParser:
         pass
 
     def __init__(self, fp):
-        self.source = fp
-        self.lineno = 0
-        self.parts  = []
+        self.source       = fp
+        self.lineno       = 0
+        self.parts        = []
+        self.repositories = []
+        self.pockets      = []
     #end function
 
     @staticmethod
     def load(fp):
+        """The repositories and pockets the preamble asks for besides
+        "core" and "main", and the parts to apply in order."""
         parser = SpecfileParser(fp)
         return parser._parse_wrapper()
     #end function
@@ -153,7 +158,7 @@ class SpecfileParser:
             self._parse()
         except StopIteration:
             pass
-        return self.parts
+        return self.repositories, self.pockets, self.parts
     #end function
 
     def _parse(self):
@@ -164,7 +169,9 @@ class SpecfileParser:
             if not stripped:
                 continue
 
-            if line[0] in ['+', '-']:
+            if line.startswith("@"):
+                self._load_directive(line)
+            elif line[0] in ['+', '-']:
                 self.parts.append(self._load_package_batch(line))
             elif line.startswith("#!"):
                 where  = "host"
@@ -202,6 +209,56 @@ class SpecfileParser:
         return self.parts
     #end function
 
+    def _load_directive(self, line):
+        # Directives form a preamble: they set up the sources the whole
+        # spec is applied with.
+        if self.parts:
+            raise SpecfileParser.SyntaxError(
+                'error on line {}: "@" directives must come before any '
+                'package or script section.'.format(self.lineno)
+            )
+        #end if
+
+        words = line.split()
+        directive, values = words[0], words[1:]
+
+        if directive == "@repositories":
+            target = self.repositories
+        elif directive == "@pockets":
+            target = self.pockets
+        else:
+            raise SpecfileParser.SyntaxError(
+                'error on line {}: unknown directive "{}".'
+                .format(self.lineno, directive)
+            )
+        #end if
+
+        if not values:
+            raise SpecfileParser.SyntaxError(
+                "error on line {}: {} needs at least one name."
+                .format(self.lineno, directive)
+            )
+        #end if
+
+        # Repository names depend on the release and are checked when the
+        # spec is applied; pocket names are fixed.
+        if directive == "@pockets":
+            for pocket in values:
+                if pocket not in DistroInfo.POCKETS:
+                    raise SpecfileParser.SyntaxError(
+                        'error on line {}: unknown pocket "{}", known are: '
+                        '{}.'.format(
+                            self.lineno, pocket, ", ".join(DistroInfo.POCKETS)
+                        )
+                    )
+            #end for
+        #end if
+
+        for value in values:
+            if value not in target:
+                target.append(value)
+    #end function
+
     def _load_script(self, where, interp):
         start_line = self.lineno
         lines = []
@@ -232,6 +289,12 @@ class SpecfileParser:
                 return (start_line, self.lineno - 1, PackageBatch(packages))
 
             line = line.strip()
+
+            if line.startswith("@"):
+                raise SpecfileParser.SyntaxError(
+                    'error on line {}: "@" directives must come before any '
+                    'package or script section.'.format(self.lineno)
+                )
 
             if line:
                 m = re.match(r"^(?P<mode>[-+])\s*(?P<package>\S+)\s*$", line)

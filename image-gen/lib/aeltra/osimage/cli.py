@@ -61,9 +61,10 @@ class ImageGenCli:
                   -a, --arch       The target architecture.
                   -l, --libc       The C runtime to use ("musl" or "glibc").
 
-                  --repo-base      Repository base URL not including the release
-                                   name.
                   --no-verify      Do not verify package list signatures.
+
+                Each spec is applied with the "core" repository and the "main"
+                pocket, plus what its @repositories and @pockets lines name.
                 """  # noqa
             ))
 
@@ -81,8 +82,7 @@ class ImageGenCli:
                     "help",
                     "libc=",
                     "no-verify",
-                    "release=",
-                    "repo-base="
+                    "release="
                 ]
             )
         except getopt.GetoptError as e:
@@ -99,8 +99,6 @@ class ImageGenCli:
                 "musl",
             "arch":
                 Platform.uname("-m"),
-            "repo_base":
-                "http://archive.aeltra.eu/dists",
             "verify":
                 True,
         }
@@ -115,8 +113,6 @@ class ImageGenCli:
                 kwargs["arch"] = v.strip().replace("-", "_")
             elif o in ["-l", "--libc"]:
                 kwargs["libc"] = v.strip()
-            elif o == "--repo-base":
-                kwargs["repo_base"] = v.strip()
             elif o == "--no-verify":
                 kwargs["verify"] = False
         #end for
@@ -260,20 +256,29 @@ class ImageGenCli:
             OPTIONS:
 
               -h, --help       Print this help message.
+              --repo <name>    Also give the finished image this repository of
+                               the release. May be given more than once.
+
+            The finished image gets the sources of every spec applied to it,
+            so that what was installed can be kept up to date.
             """
         )
 
         try:
-            opts, args = getopt.getopt(args, "h", ["help"])
+            opts, args = getopt.getopt(args, "h", ["help", "repo="])
         except getopt.GetoptError as e:
             raise ImageGenCli.Error(
                 "error parsing command line: {}".format(str(e))
             )
 
+        repositories = []
+
         for o, v in opts:
             if o in ["-h", "--help"]:
                 print(usage)
                 sys.exit(EXIT_OK)
+            elif o == "--repo":
+                repositories.append(v.strip())
         #end for
 
         if len(args) != 1:
@@ -294,13 +299,26 @@ class ImageGenCli:
                 ImageGeneratorUtils.determine_target_arch(sysroot),
         }
 
+        # Without --repo, the image gets what the specs used, which needs no
+        # release data.
+        if repositories:
+            known = DistroInfo().repository_names(release=kwargs["release"])
+            for name in repositories:
+                if name not in known:
+                    raise ImageGenCli.Error(
+                        'release "{}" has no repository "{}", it has: {}.'
+                        .format(kwargs["release"], name, ", ".join(known))
+                    )
+            #end for
+        #end if
+
         if os.geteuid() != 0:
             raise ImageGenCli.Error(
                 "image generation needs to be done as root."
             )
 
         image_gen = ImageGenerator(**kwargs)
-        image_gen.cleanup(sysroot=args[0])
+        image_gen.cleanup(sysroot=args[0], repositories=repositories)
     #end function
 
     def package(self, *args):

@@ -1,3 +1,6 @@
+= The packages built for the host, installed below /tools.
+@pockets tools cross-tools
+
 ===============================================================================
 = Bootstrap a minimal base system.
 ===============================================================================
@@ -26,31 +29,6 @@ aept --offline-root "$AELTRA_SYSROOT" mark manual --all
 +sysctl
 +file
 +binutils
-
-===============================================================================
-= Configure tools repository for AELTRA_HOST_ARCH and update the package cache.
-===============================================================================
-
-#!(chroot)/bin/sh
-
-#
-# Inside a build box target, the tools repository is configured per default, so
-# we can skip it here.
-#
-if [ -f /etc/target ]; then
-    exit 0
-fi
-
-echo "Configuring tools repository for $AELTRA_HOST_ARCH."
-
-cat << EOF >> /etc/aept/aept.conf
-
-arch tools
-src/gz tools http://archive.aeltra.eu/dists/$AELTRA_RELEASE/core/$AELTRA_ARCH/$AELTRA_LIBC/tools/$AELTRA_HOST_ARCH
-src/gz cross-tools http://archive.aeltra.eu/dists/$AELTRA_RELEASE/core/$AELTRA_ARCH/$AELTRA_LIBC/cross-tools/$AELTRA_HOST_ARCH
-EOF
-
-aept update
 
 ===============================================================================
 = Install a minimal base system into the tools folder.

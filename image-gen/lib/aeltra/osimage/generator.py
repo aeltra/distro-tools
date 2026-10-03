@@ -23,12 +23,15 @@
 # THE SOFTWARE.
 #
 
+import collections
+import json
 import logging
 import os
 import re
 import shutil
 import textwrap
 
+from aeltra.distro.config.distroinfo import DistroInfo, Source
 from aeltra.error import AeltraError
 from aeltra.miscellaneous.platform import Platform
 from aeltra.osimage.specfile import SpecfileParser
@@ -41,14 +44,21 @@ class ImageGenerator:
 
     AEPT_CONFIG_TEMPLATE = textwrap.dedent(
         """\
-        src/gz main {repo_base}/{release}/core/{arch}/{libc}/main
+        {sources}
 
-        arch {arch}
-        arch all
+        {archs}
 
         {opt_check_sig}
         """
     )
+
+    # Every spec is applied with these; its preamble adds more.
+    DEFAULT_REPOSITORY = "core"
+    DEFAULT_POCKET     = "main"
+
+    # The sources each spec was applied with, one JSON object per line, so
+    # that the finished image gets every source something came from.
+    SOURCES_LEDGER = "/var/lib/image-gen/sources"
 
     DIRS_TO_CREATE = [
         (0o0755, "/dev"),
@@ -154,16 +164,16 @@ class ImageGenerator:
         arch,
         libc="musl",
         verify=True,
-        repo_base=None,
         **kwargs
     ):
         self._release   = release
         self._arch      = arch
         self._libc      = libc
         self._verify    = verify
-        self._repo_base = repo_base or "http://archive.aeltra.eu/dists"
 
-        opt_check_sig = "option check_signature {}".format(1 if self._verify else 0)
+        opt_check_sig = "option check_signature {}".format(
+            1 if self._verify else 0
+        )
         uname_m = Platform.uname("-m")
 
         tools_type = Platform.target_for_machine(uname_m, self._libc)
@@ -187,8 +197,6 @@ class ImageGenerator:
                 tools_type,
             "opt_check_sig":
                 opt_check_sig,
-            "repo_base":
-                self._repo_base
         }
     #end function
 
@@ -207,6 +215,7 @@ class ImageGenerator:
         #end for
 
         self._write_config_files(sysroot)
+        self._write_aept_config(sysroot, self._lookup_sources())
 
         files_to_copy = [
             "/etc/hosts",
@@ -234,7 +243,13 @@ class ImageGenerator:
         sysroot = os.path.realpath(sysroot)
 
         with open(specfile, "r", encoding="utf-8") as f:
-            parts = SpecfileParser.load(f)
+            repositories, pockets, parts = SpecfileParser.load(f)
+
+        # The spec gets exactly the sources its preamble asks for, whatever
+        # earlier specs used: it must not depend on them.
+        sources = self._lookup_sources(repositories, pockets)
+        self._use_sources(sysroot, sources)
+        self._record_sources(sysroot, sources)
 
         env = self._prepare_environment(sysroot)
         aept_options = self._aept_options(sysroot)
@@ -260,7 +275,40 @@ class ImageGenerator:
         #end for
     #end function
 
-    def cleanup(self, sysroot):
+    def finalize_aept_config(self, sysroot, repositories=None):
+        """Write the aept.conf the finished image keeps: every source a
+        spec was applied with, so that whatever was installed can be
+        kept up to date, and the given repositories besides, with the
+        pockets the image uses where they have them."""
+        sysroot = os.path.realpath(sysroot)
+        sources = self._recorded_sources(sysroot)
+
+        if not sources:
+            sources = self._lookup_sources()
+
+        known   = [s.repository for s in sources]
+        extra   = [r for r in repositories or [] if r not in known]
+        pockets = [p for p in DistroInfo.POCKETS
+                   if any(s.pocket == p for s in sources)]
+
+        if extra:
+            try:
+                sources += DistroInfo().repository_sources(
+                    release=self._release,
+                    repositories=extra,
+                    arch=self._arch,
+                    libc=self._libc,
+                    host_arch=self.context["host_arch"],
+                    pockets=pockets,
+                )
+            except AeltraError as e:
+                raise ImageGenerator.Error(str(e))
+        #end if
+
+        self._write_aept_config(sysroot, sources)
+    #end function
+
+    def cleanup(self, sysroot, repositories=None):
         if not os.path.isdir(sysroot):
             raise ImageGenerator.Error("no such directory: {}".format(sysroot))
 
@@ -273,6 +321,8 @@ class ImageGenerator:
         #end if
 
         self._write_config_files(sysroot)
+        self.finalize_aept_config(sysroot, repositories)
+
         try:
             os.unlink(sysroot + "/etc/resolv.conf")
         except OSError:
@@ -352,22 +402,121 @@ class ImageGenerator:
 
     def _write_config_files(self, sysroot):
         conffile_list = [
-            "/etc/aept/aept.conf",
             "/etc/passwd",
             "/etc/group",
             "/etc/hosts",
         ]
 
         template_list = [
-            self.AEPT_CONFIG_TEMPLATE,
             self.ETC_PASSWD,
             self.ETC_GROUP,
             self.ETC_HOSTS,
         ]
 
         for conffile, template in zip(conffile_list, template_list):
-            with open(sysroot + conffile, "w+", encoding="utf-8") as f:
-                f.write(template.format(**self.context))
+            self._write_config_file(sysroot, conffile, template)
+    #end function
+
+    def _write_config_file(self, sysroot, conffile, template):
+        with open(sysroot + conffile, "w+", encoding="utf-8") as f:
+            f.write(template.format(**self.context))
+    #end function
+
+    def _lookup_sources(self, repositories=(), pockets=()):
+        """The sources for the default repository and pocket plus the given
+        ones, as distro-info lays them out."""
+        wanted_repositories = [self.DEFAULT_REPOSITORY]
+        for name in repositories:
+            if name not in wanted_repositories:
+                wanted_repositories.append(name)
+
+        try:
+            return DistroInfo().repository_sources(
+                release=self._release,
+                repositories=wanted_repositories,
+                arch=self._arch,
+                libc=self._libc,
+                host_arch=self.context["host_arch"],
+                pockets=[self.DEFAULT_POCKET] + list(pockets),
+            )
+        except AeltraError as e:
+            raise ImageGenerator.Error(str(e))
+    #end function
+
+    def _use_sources(self, sysroot, sources):
+        """Point aept at the sources and update the package lists on the
+        host, where the aept options -- the shared cache, the credentials
+        -- apply. Unchanged sources need no update."""
+        if not self._write_aept_config(sysroot, sources):
+            return
+
+        aept_cmd = ["aept", "-o", sysroot] \
+            + self._aept_options(sysroot) + ["update"]
+        Subprocess.run(sysroot, aept_cmd[0], aept_cmd)
+    #end function
+
+    def _write_aept_config(self, sysroot, sources):
+        """Write aept.conf for the sources; returns whether it changed."""
+        archs = ["arch {}".format(self._arch), "arch all"]
+        if any(s.pocket in ("tools", "cross-tools") for s in sources):
+            archs.append("arch tools")
+
+        context = dict(self.context)
+        context.update({
+            "sources":
+                "\n".join("src/gz {} {}".format(s.name, s.url)
+                          for s in sources),
+            "archs":
+                "\n".join(archs),
+        })
+        text = self.AEPT_CONFIG_TEMPLATE.format(**context)
+
+        path = sysroot + "/etc/aept/aept.conf"
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                if f.read() == text:
+                    return False
+        except OSError:
+            pass
+
+        with open(path, "w+", encoding="utf-8") as f:
+            f.write(text)
+        return True
+    #end function
+
+    def _record_sources(self, sysroot, sources):
+        path = sysroot + self.SOURCES_LEDGER
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "sources": [s._asdict() for s in sources],
+            }) + "\n")
+    #end function
+
+    def _recorded_sources(self, sysroot):
+        """Every source the ledger names, once, in the order first used."""
+        sources = collections.OrderedDict()
+
+        try:
+            with open(sysroot + self.SOURCES_LEDGER, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            return []
+
+        for line in lines:
+            try:
+                entry = json.loads(line)
+                for item in entry["sources"]:
+                    source = Source(**item)
+                    sources.setdefault(source.name, source)
+            except (ValueError, KeyError, TypeError) as e:
+                raise ImageGenerator.Error(
+                    "malformed entry in {}: {}".format(self.SOURCES_LEDGER, e)
+                )
+        #end for
+
+        return list(sources.values())
     #end function
 
 #end class
