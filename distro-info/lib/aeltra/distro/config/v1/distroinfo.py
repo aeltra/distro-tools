@@ -29,7 +29,6 @@ import logging
 import os
 import re
 
-from aeltra.miscellaneous.downloader import Downloader
 from aeltra.miscellaneous.userinfo import UserInfo
 from aeltra.distro.config.error import \
         DistroInfoError, ReleaseNotFoundError
@@ -67,6 +66,10 @@ class DistroInfo:
             items_to_fetch.append("releases")
         if mirrors:
             items_to_fetch.append("mirrors")
+
+        # Imported here, since it brings in urllib, http.client and ssl,
+        # which would otherwise slow down every command, even a help text.
+        from aeltra.miscellaneous.downloader import Downloader
 
         os.makedirs(UserInfo.config_folder(), exist_ok=True)
         downloader = Downloader()
