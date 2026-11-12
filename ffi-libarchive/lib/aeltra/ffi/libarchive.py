@@ -207,6 +207,17 @@ lib.archive_entry_uid.restype = ctypes.c_ulong
 lib.archive_entry_uname.argtypes = [ctypes.c_void_p]
 lib.archive_entry_uname.restype = ctypes.c_char_p
 
+for func_name in [
+        "archive_entry_gname_utf8",
+        "archive_entry_hardlink_utf8",
+        "archive_entry_pathname_utf8",
+        "archive_entry_symlink_utf8",
+        "archive_entry_uname_utf8"]:
+    func = getattr(lib, func_name)
+    func.argtypes = [ctypes.c_void_p]
+    func.restype = ctypes.c_char_p
+#end for
+
 lib.archive_error_string.argtypes = [ctypes.c_void_p]
 lib.archive_error_string.restype = ctypes.c_char_p
 
@@ -317,6 +328,26 @@ class ArchiveEntry:
             self.__c_entry_p = None
     #end function
 
+    def _get_string(self, utf8_func, func):
+        #
+        # The UTF-8 form doesn't depend on the locale, but there is none
+        # where the archive stores bytes that aren't valid in the locale's
+        # charset, e.g. a Latin-1 name in an old tar header. Those come
+        # as they are, with surrogateescape, which encodes them back to
+        # the same bytes. None when the entry has no such name at all.
+        #
+        value = utf8_func(self._c_entry_p)
+        if value is None:
+            value = func(self._c_entry_p)
+        if value is None:
+            return None
+        return value.decode("utf-8", "surrogateescape")
+    #end function
+
+    @staticmethod
+    def _to_bytes(value):
+        return value.encode("utf-8", "surrogateescape")
+
     def clear(self):
         lib.archive_entry_clear(self._c_entry_p)
 
@@ -350,7 +381,7 @@ class ArchiveEntry:
 
     @property
     def is_hardlink(self):
-        return bool(lib.archive_entry_hardlink(self._c_entry_p))
+        return bool(self.hardlink)
 
     @property
     def filetype(self):
@@ -413,20 +444,22 @@ class ArchiveEntry:
 
     @property
     def gname(self):
-        return lib.archive_entry_gname(self._c_entry_p).decode("utf-8")
+        return self._get_string(lib.archive_entry_gname_utf8,
+            lib.archive_entry_gname)
 
     @gname.setter
     def gname(self, gname):
-        lib.archive_entry_copy_gname(self._c_entry_p, gname.encode("utf-8"))
+        lib.archive_entry_copy_gname(self._c_entry_p, self._to_bytes(gname))
 
     @property
     def hardlink(self):
-        return lib.archive_entry_hardlink(self._c_entry_p).decode("utf-8")
+        return self._get_string(lib.archive_entry_hardlink_utf8,
+            lib.archive_entry_hardlink)
 
     @hardlink.setter
     def hardlink(self, hardlink):
         lib.archive_entry_copy_hardlink(self._c_entry_p,
-                hardlink.encode("utf-8"))
+                self._to_bytes(hardlink))
 
     @property
     def inode(self):
@@ -462,12 +495,13 @@ class ArchiveEntry:
 
     @property
     def pathname(self):
-        return lib.archive_entry_pathname(self._c_entry_p).decode("utf-8")
+        return self._get_string(lib.archive_entry_pathname_utf8,
+            lib.archive_entry_pathname)
 
     @pathname.setter
     def pathname(self, pathname):
         lib.archive_entry_copy_pathname(self._c_entry_p,
-                pathname.encode("utf-8"))
+                self._to_bytes(pathname))
     #end function
 
     @property
@@ -496,12 +530,13 @@ class ArchiveEntry:
 
     @property
     def symlink(self):
-        return lib.archive_entry_symlink(self._c_entry_p).decode("utf-8")
+        return self._get_string(lib.archive_entry_symlink_utf8,
+            lib.archive_entry_symlink)
 
     @symlink.setter
     def symlink(self, symlink):
         lib.archive_entry_copy_symlink(self._c_entry_p,
-                symlink.encode("utf-8"))
+                self._to_bytes(symlink))
     #end function
 
     @property
@@ -514,12 +549,13 @@ class ArchiveEntry:
 
     @property
     def uname(self):
-        return lib.archive_entry_uname(self._c_entry_p).decode("utf-8")
+        return self._get_string(lib.archive_entry_uname_utf8,
+            lib.archive_entry_uname)
 
     @uname.setter
     def uname(self, uname):
         lib.archive_entry_copy_uname(self._c_entry_p,
-                uname.encode("utf-8"))
+                self._to_bytes(uname))
     #end function
 
     def copy_stat(self, filename, no_atime=False, no_mtime=False,
@@ -897,7 +933,10 @@ class ArchiveFileReader:
             archive_entry.free()
             self.close()
             return None
-        elif rval == STATUS_OK:
+        elif rval in (STATUS_OK, STATUS_WARN):
+            # A warning still gives a usable entry, e.g. one whose names
+            # can't be converted to the locale's charset: the properties
+            # read their UTF-8 form first.
             return archive_entry
         else:
             archive_entry.free()
