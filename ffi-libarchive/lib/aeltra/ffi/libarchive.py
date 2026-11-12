@@ -62,7 +62,13 @@ COMPRESSION_ZSTD = 20
 
 STATUS_OK = 0
 STATUS_EOF = 1
+STATUS_WARN = -20
 STATUS_FATAL = -30
+
+EXTRACT_PERM = 0x0002
+EXTRACT_TIME = 0x0004
+EXTRACT_SECURE_SYMLINKS = 0x0100
+EXTRACT_SECURE_NODOTDOT = 0x0200
 
 ################################### CTYPES ####################################
 
@@ -215,6 +221,14 @@ lib.archive_write_open_filename.restype = ctypes.c_int
 lib.archive_write_data.argtypes = \
     [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
 lib.archive_write_data.restype = ctypes.c_ssize_t
+lib.archive_write_finish_entry.argtypes = [ctypes.c_void_p]
+lib.archive_write_finish_entry.restype = ctypes.c_int
+lib.archive_write_close.argtypes = [ctypes.c_void_p]
+lib.archive_write_close.restype = ctypes.c_int
+lib.archive_write_disk_new.argtypes = []
+lib.archive_write_disk_new.restype = ctypes.c_void_p
+lib.archive_write_disk_set_options.argtypes = [ctypes.c_void_p, ctypes.c_int]
+lib.archive_write_disk_set_options.restype = ctypes.c_int
 
 lib.archive_read_free.argtypes = [ctypes.c_void_p]
 lib.archive_write_free.restype = ctypes.c_int
@@ -897,42 +911,103 @@ class ArchiveFileReader:
 
     def unpack_to_disk(self, base_dir=".", strip_components=0,
             sane_file_modes=True):
-        for entry in self:
-            pathname = entry.pathname.strip()
-            pathname = re.sub(r"^(?:\.+/+)", "", pathname)
-            pathname = os.sep.join(
-                [base_dir, ] + pathname.split(os.sep)[strip_components:]
+        """
+        Unpacks directories, regular files and symbolic links below
+        base_dir and refuses any other kind of entry. Modes are kept as
+        they are, except for the setuid, setgid and sticky bits, which are
+        dropped; with sane_file_modes the owner may also always read and
+        write files and enter directories. Owners are not restored.
+
+        The writing is left to libarchive, which refuses to write to a
+        path that contains ".." or that leads through a symbolic link, so
+        a crafted archive can't write outside of base_dir. Either way,
+        unpacking stops at the first entry that can't be unpacked.
+        """
+        # Without symbolic links, which libarchive would refuse to write
+        # through.
+        base_dir = os.path.realpath(base_dir)
+
+        c_disk_p = lib.archive_write_disk_new()
+
+        try:
+            lib.archive_write_disk_set_options(
+                c_disk_p,
+                EXTRACT_PERM |
+                EXTRACT_TIME |
+                EXTRACT_SECURE_SYMLINKS |
+                EXTRACT_SECURE_NODOTDOT
             )
 
-            if not entry.is_directory:
-                os.makedirs(os.path.dirname(pathname), exist_ok=True)
+            for entry in self:
+                name = entry.pathname
 
-            if entry.is_directory:
-                if sane_file_modes:
-                    entry.mode |= 0o700
-                os.makedirs(pathname, exist_ok=True)
-                os.chmod(pathname, entry.mode)
-            elif entry.is_file:
-                if sane_file_modes:
-                    entry.mode |= 0o600
-                with open(pathname, "wb+") as f:
-                    for chunk in iter(lambda: self.read_data(4096), b""):
-                        f.write(chunk)
-                #end with
-                os.chmod(pathname, entry.mode)
-                # Assume it is sufficient to do this for files.
-                os.utime(pathname, (entry.atime, entry.mtime))
-            elif entry.is_symbolic_link:
-                if os.path.exists(pathname) or os.path.islink(pathname):
-                    os.unlink(pathname)
-                os.symlink(entry.symlink, pathname)
-            else:
-                raise ArchiveError(
-                    "Don't know how to create '%s' with special file type." %
-                        entry.pathname
-                )
-            #end if
-        #end for
+                pathname = name.strip()
+                pathname = re.sub(r"^(?:\.+/+)", "", pathname)
+                pathname = pathname.lstrip(os.sep)
+
+                components = pathname.split(os.sep)[strip_components:]
+
+                # base_dir itself, or above where the stripping starts.
+                if not "".join(components):
+                    continue
+
+                if entry.is_directory:
+                    sane_mode = 0o700
+                elif entry.is_file:
+                    sane_mode = 0o600
+                elif entry.is_symbolic_link:
+                    sane_mode = None
+                else:
+                    raise ArchiveError(
+                        "Don't know how to create '%s' with special file "
+                        "type." % name
+                    )
+                #end if
+
+                if sane_mode is not None:
+                    mode = entry.mode & 0o777
+                    if sane_file_modes:
+                        mode |= sane_mode
+                    entry.mode = entry.filetype | mode
+                #end if
+
+                entry.pathname = os.sep.join([base_dir, ] + components)
+
+                self._check_disk_status(c_disk_p, name,
+                    lib.archive_write_header(c_disk_p, entry._c_entry_p))
+
+                if entry.is_file:
+                    for chunk in iter(lambda: self.read_data(65536), b""):
+                        if lib.archive_write_data(c_disk_p, chunk,
+                                len(chunk)) < 0:
+                            self._check_disk_status(c_disk_p, name,
+                                STATUS_FATAL)
+                    #end for
+                #end if
+
+                self._check_disk_status(c_disk_p, name,
+                    lib.archive_write_finish_entry(c_disk_p))
+            #end for
+
+            # Sets the modes and times of the directories, which are left
+            # writable until then.
+            self._check_disk_status(c_disk_p, base_dir,
+                lib.archive_write_close(c_disk_p))
+        finally:
+            lib.archive_write_free(c_disk_p)
+        #end try
+    #end function
+
+    @staticmethod
+    def _check_disk_status(c_disk_p, name, rval):
+        # A warning is about metadata that couldn't be restored, such as a
+        # time; failing means the entry wasn't written.
+        if rval < STATUS_WARN:
+            raise ArchiveError(
+                "failed to unpack '{}': {}"
+                .format(name, error_string(c_disk_p))
+            )
+        #end if
     #end function
 
     def __read_data(self, size):
