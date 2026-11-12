@@ -252,7 +252,7 @@ lib.archive_write_disk_set_options.argtypes = [ctypes.c_void_p, ctypes.c_int]
 lib.archive_write_disk_set_options.restype = ctypes.c_int
 
 lib.archive_read_free.argtypes = [ctypes.c_void_p]
-lib.archive_write_free.restype = ctypes.c_int
+lib.archive_read_free.restype = ctypes.c_int
 lib.archive_read_data.argtypes = \
     [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t]
 lib.archive_read_data.restype = ctypes.c_ssize_t
@@ -314,6 +314,9 @@ class ArchiveEntry:
 
     def __init__(self):
         self.__c_entry_p = lib.archive_entry_new()
+        if not self.__c_entry_p:
+            raise MemoryError("libarchive could not allocate an entry")
+    #end function
 
     def __del__(self):
         self.free()
@@ -434,7 +437,13 @@ class ArchiveEntry:
         lib.archive_entry_set_ctime(self._c_entry_p, ctime, 0)
 
     def clone(self):
-        return ArchiveEntry(lib.archive_entry_clone(self._c__entry_p))
+        # Without __init__, which would allocate an entry of its own.
+        entry = ArchiveEntry.__new__(ArchiveEntry)
+        entry.__c_entry_p = lib.archive_entry_clone(self._c_entry_p)
+        if not entry.__c_entry_p:
+            raise MemoryError("libarchive could not allocate an entry")
+        return entry
+    #end function
 
     @property
     def dev(self):
@@ -551,7 +560,7 @@ class ArchiveEntry:
 
     @property
     def uid(self):
-        lib.archive_entry_uid(self._c_entry_p)
+        return lib.archive_entry_uid(self._c_entry_p)
 
     @uid.setter
     def uid(self, uid):
@@ -624,6 +633,9 @@ class ArchiveFileWriter:
         self._c_archive_p = lib.archive_write_new()
         self._filename = filename
         self._hardlinks = {}
+
+        if not self._c_archive_p:
+            raise MemoryError("libarchive could not allocate an archive")
 
         try:
             func = getattr(lib, _compression_functions[compression])
@@ -811,6 +823,9 @@ class ArchiveFileReader:
         self._read_callback  = None
         self._read_error     = None
         self._read_interrupt = None
+
+        if not self._c_archive_p:
+            raise MemoryError("libarchive could not allocate an archive")
 
         try:
             self.__init_helper(source, cmd=cmd, raw=raw)
@@ -1036,6 +1051,8 @@ class ArchiveFileReader:
         base_dir = os.path.realpath(base_dir)
 
         c_disk_p = lib.archive_write_disk_new()
+        if not c_disk_p:
+            raise MemoryError("libarchive could not allocate an archive")
 
         try:
             lib.archive_write_disk_set_options(
