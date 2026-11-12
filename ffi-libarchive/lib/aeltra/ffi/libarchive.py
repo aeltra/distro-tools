@@ -72,6 +72,14 @@ EXTRACT_SECURE_NODOTDOT = 0x0200
 
 ################################### CTYPES ####################################
 
+# The types in libarchive's prototypes that ctypes has no name for. time_t
+# it knows from Python 3.12 on; before that, long is time_t wherever the
+# latter isn't 64 bits on a 32-bit system. dev_t is 64 bits with glibc and
+# with musl, on every architecture.
+_c_time_t = getattr(ctypes, "c_time_t", ctypes.c_long)
+_c_dev_t  = ctypes.c_uint64
+_c_mode_t = ctypes.c_uint
+
 _format_functions = {
     FORMAT_AR: "archive_write_set_format_ar_svr4",
     FORMAT_AR_BSD: "archive_write_set_format_ar_bsd",
@@ -116,7 +124,7 @@ for func_name in _compression_functions.values():
 #end for
 
 lib.archive_entry_atime.argtypes = [ctypes.c_void_p]
-lib.archive_entry_atime.restype = ctypes.c_int
+lib.archive_entry_atime.restype = _c_time_t
 lib.archive_entry_clear.argtypes = [ctypes.c_void_p]
 lib.archive_entry_clear.restype = ctypes.c_void_p
 lib.archive_entry_clone.argtypes = [ctypes.c_void_p]
@@ -132,29 +140,29 @@ lib.archive_entry_copy_symlink.restype = None
 lib.archive_entry_copy_uname.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
 lib.archive_entry_copy_uname.restype = None
 lib.archive_entry_ctime.argtypes = [ctypes.c_void_p]
-lib.archive_entry_ctime.restype = ctypes.c_int
+lib.archive_entry_ctime.restype = _c_time_t
 lib.archive_entry_dev.argtypes = [ctypes.c_void_p]
-lib.archive_entry_dev.restype = ctypes.c_ulong
+lib.archive_entry_dev.restype = _c_dev_t
 lib.archive_entry_devmajor.argtypes = [ctypes.c_void_p]
-lib.archive_entry_devmajor.restype = ctypes.c_uint
+lib.archive_entry_devmajor.restype = _c_dev_t
 lib.archive_entry_devminor.argtypes = [ctypes.c_void_p]
-lib.archive_entry_devminor.restype = ctypes.c_uint
+lib.archive_entry_devminor.restype = _c_dev_t
 lib.archive_entry_filetype.argtypes = [ctypes.c_void_p]
-lib.archive_entry_filetype.restype = ctypes.c_uint
+lib.archive_entry_filetype.restype = _c_mode_t
 lib.archive_entry_free.argtypes = [ctypes.c_void_p]
 lib.archive_entry_free.restype = None
 lib.archive_entry_gid.argtypes = [ctypes.c_void_p]
-lib.archive_entry_gid.restype = ctypes.c_ulong
+lib.archive_entry_gid.restype = ctypes.c_int64
 lib.archive_entry_gname.argtypes = [ctypes.c_void_p]
 lib.archive_entry_gname.restype = ctypes.c_char_p
 lib.archive_entry_hardlink.argtypes = [ctypes.c_void_p]
 lib.archive_entry_hardlink.restype = ctypes.c_char_p
 lib.archive_entry_ino.argtypes = [ctypes.c_void_p]
-lib.archive_entry_ino.restype = ctypes.c_ulong
+lib.archive_entry_ino.restype = ctypes.c_int64
 lib.archive_entry_mode.argtypes = [ctypes.c_void_p]
-lib.archive_entry_mode.restype = ctypes.c_int
+lib.archive_entry_mode.restype = _c_mode_t
 lib.archive_entry_mtime.argtypes = [ctypes.c_void_p]
-lib.archive_entry_mtime.restype = ctypes.c_int
+lib.archive_entry_mtime.restype = _c_time_t
 lib.archive_entry_new.argtypes = []
 lib.archive_entry_new.restype = ctypes.c_void_p
 lib.archive_entry_nlink.argtypes = [ctypes.c_void_p]
@@ -162,48 +170,48 @@ lib.archive_entry_nlink.restype = ctypes.c_uint
 lib.archive_entry_pathname.argtypes = [ctypes.c_void_p]
 lib.archive_entry_pathname.restype = ctypes.c_char_p
 lib.archive_entry_rdevmajor.argtypes = [ctypes.c_void_p]
-lib.archive_entry_rdevmajor.restype = ctypes.c_uint
+lib.archive_entry_rdevmajor.restype = _c_dev_t
 lib.archive_entry_rdevminor.argtypes = [ctypes.c_void_p]
-lib.archive_entry_rdevminor.restype = ctypes.c_uint
+lib.archive_entry_rdevminor.restype = _c_dev_t
 lib.archive_entry_set_atime.argtypes = \
-    [ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong]
+    [ctypes.c_void_p, _c_time_t, ctypes.c_long]
 lib.archive_entry_set_atime.restype = None
 lib.archive_entry_set_ctime.argtypes = \
-    [ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong]
+    [ctypes.c_void_p, _c_time_t, ctypes.c_long]
 lib.archive_entry_set_ctime.restype = None
-lib.archive_entry_set_dev.argtypes = [ctypes.c_void_p, ctypes.c_long]
+lib.archive_entry_set_dev.argtypes = [ctypes.c_void_p, _c_dev_t]
 lib.archive_entry_set_dev.restype = None
-lib.archive_entry_set_devmajor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+lib.archive_entry_set_devmajor.argtypes = [ctypes.c_void_p, _c_dev_t]
 lib.archive_entry_set_devmajor.restype = None
-lib.archive_entry_set_devminor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+lib.archive_entry_set_devminor.argtypes = [ctypes.c_void_p, _c_dev_t]
 lib.archive_entry_set_devminor.restype = None
 lib.archive_entry_set_filetype.argtypes = [ctypes.c_void_p, ctypes.c_uint]
 lib.archive_entry_set_filetype.restype = None
-lib.archive_entry_set_gid.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+lib.archive_entry_set_gid.argtypes = [ctypes.c_void_p, ctypes.c_int64]
 lib.archive_entry_set_gid.restype = None
-lib.archive_entry_set_ino.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+lib.archive_entry_set_ino.argtypes = [ctypes.c_void_p, ctypes.c_int64]
 lib.archive_entry_set_ino.restype = None
-lib.archive_entry_set_mode.argtypes = [ctypes.c_void_p, ctypes.c_int]
+lib.archive_entry_set_mode.argtypes = [ctypes.c_void_p, _c_mode_t]
 lib.archive_entry_set_mode.restype = None
 lib.archive_entry_set_mtime.argtypes = \
-    [ctypes.c_void_p, ctypes.c_int, ctypes.c_long]
+    [ctypes.c_void_p, _c_time_t, ctypes.c_long]
 lib.archive_entry_set_mtime.restype = None
 lib.archive_entry_set_nlink.argtypes = [ctypes.c_void_p, ctypes.c_uint]
 lib.archive_entry_set_nlink.restype = None
-lib.archive_entry_set_rdevmajor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+lib.archive_entry_set_rdevmajor.argtypes = [ctypes.c_void_p, _c_dev_t]
 lib.archive_entry_set_rdevmajor.restype = None
-lib.archive_entry_set_rdevminor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+lib.archive_entry_set_rdevminor.argtypes = [ctypes.c_void_p, _c_dev_t]
 lib.archive_entry_set_rdevminor.restype = None
-lib.archive_entry_set_size.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+lib.archive_entry_set_size.argtypes = [ctypes.c_void_p, ctypes.c_int64]
 lib.archive_entry_set_size.restype = None
-lib.archive_entry_set_uid.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+lib.archive_entry_set_uid.argtypes = [ctypes.c_void_p, ctypes.c_int64]
 lib.archive_entry_set_uid.restype = None
 lib.archive_entry_size.argtypes = [ctypes.c_void_p]
-lib.archive_entry_size.restype = ctypes.c_ulong
+lib.archive_entry_size.restype = ctypes.c_int64
 lib.archive_entry_symlink.argtypes = [ctypes.c_void_p]
 lib.archive_entry_symlink.restype = ctypes.c_char_p
 lib.archive_entry_uid.argtypes = [ctypes.c_void_p]
-lib.archive_entry_uid.restype = ctypes.c_ulong
+lib.archive_entry_uid.restype = ctypes.c_int64
 lib.archive_entry_uname.argtypes = [ctypes.c_void_p]
 lib.archive_entry_uname.restype = ctypes.c_char_p
 
@@ -253,7 +261,7 @@ lib.archive_read_new.restype = ctypes.c_void_p
 lib.archive_read_next_header2.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 lib.archive_read_next_header2.restype = ctypes.c_int
 lib.archive_read_open_filename.argtypes = \
-    [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_ulong]
+    [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
 lib.archive_read_open_filename.restype = ctypes.c_int
 lib.archive_read_open_fd.argtypes = \
     [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t]
