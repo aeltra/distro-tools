@@ -1,3 +1,44 @@
+aeltra-distro-tools (1.15.0-1) unstable; urgency=medium
+
+  * misc: the downloader can send credentials. Downloader takes an
+    AuthFile, read from a file in apt's auth.conf format as aept reads
+    it, and sends the login and password of a matching entry as Basic
+    auth on GET and HEAD. Only https URLs match, by host and path
+    prefix, and the header isn't passed on to redirects. Without an
+    AuthFile nothing changes: which downloads carry credentials is up
+    to each tool.
+  * ffi-libarchive: ArchiveFileReader reads from a file descriptor as
+    well, and from the current entry of another reader: an archive
+    inside an archive is decompressed as it is read, without being
+    written out anywhere.
+  * ffi-libarchive: unpack_to_disk() could write outside its target
+    directory, through ".." in a name or through a symlink the archive
+    had just created, and it kept setuid, setgid and sticky bits.
+    libarchive's disk writer does the writing now and refuses both,
+    and the special bits are dropped. Directories, regular files and
+    symlinks are unpacked as before, with their exact modes; anything
+    else is still refused. Absolute names end up below the target
+    directory, and entries that map to the directory itself are
+    skipped.
+  * ffi-libarchive: names that are missing, aren't UTF-8 or can't be
+    converted to the locale's charset no longer raise AttributeError or
+    UnicodeDecodeError, or fail the whole archive under LC_ALL=C. A
+    missing name is None, and bytes that aren't UTF-8 are kept with
+    surrogateescape, so that they are unpacked as they were.
+  * ffi-libarchive: closing a writer reports errors, such as a full
+    disk, instead of silently leaving an incomplete archive behind, and
+    so does an entry that gets more or less data than its size, e.g. a
+    file that changed while it was being packed.
+  * ffi-libarchive: no more crashes from using an entry after the loop
+    that read it has moved on, or from a failed allocation, and a
+    signal arriving while an inner archive is being read is no longer
+    swallowed. Times beyond 2038 and the 64-bit fields are passed with
+    the types of libarchive's headers. uid and clone() work.
+  * Tests: misc and ffi-libarchive have pytest suites now. tox runs
+    them as py3, and flake8 as lint.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 13 Nov 2026 00:24:55 +0300
+
 aeltra-distro-tools (1.14.2-1) unstable; urgency=medium
 
   * package: python3-aeltra-package depends on gpg, which verifies the
