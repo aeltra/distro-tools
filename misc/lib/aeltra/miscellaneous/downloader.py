@@ -23,6 +23,7 @@
 # THE SOFTWARE.
 #
 
+import base64
 import hashlib
 import os
 import random
@@ -37,15 +38,23 @@ class DownloadError(AeltraError):
 
 class Downloader:
 
-    def __init__(self, progress_bar_class=None):
+    def __init__(self, progress_bar_class=None, auth_file=None):
+        """
+        With an auth_file (an AuthFile), requests to URLs it has an entry
+        for carry that entry's login and password. Without one, none do:
+        which downloads may send credentials is up to the caller.
+        """
         self._progress_bar_class = progress_bar_class
+        self._auth_file          = auth_file
+    #end function
 
     def get(self, url, digest=None, connection_timeout=30):
         progress_bar = None
         bytes_read   = 0
 
         try:
-            with urllib.request.urlopen(url, timeout=connection_timeout)\
+            request = self._request(url)
+            with urllib.request.urlopen(request, timeout=connection_timeout)\
                     as response:
                 if self._progress_bar_class and response.length:
                     progress_bar = self._progress_bar_class(response.length)
@@ -152,7 +161,7 @@ class Downloader:
             string.digits
 
         try:
-            request = urllib.request.Request(url, method="HEAD")
+            request = self._request(url, method="HEAD")
             with urllib.request.urlopen(request, timeout=connection_timeout)\
                     as response:
                 identifier1 = response.getheader("ETag", "")
@@ -170,6 +179,32 @@ class Downloader:
         sha256.update(identifier2.encode("utf-8"))
 
         return sha256.hexdigest()[:16]
+    #end function
+
+    # HELPERS
+
+    def _request(self, url, method=None):
+        request = urllib.request.Request(url, method=method)
+
+        if self._auth_file is None:
+            return request
+
+        credentials = self._auth_file.find(url)
+        if credentials is None:
+            return request
+
+        login, password = credentials
+        basic = base64.b64encode(
+            "{}:{}".format(login, password).encode("utf-8")
+        ).decode("ascii")
+
+        # Unredirected: a redirect may lead to another host, which must
+        # not see the credentials (urllib copies the ordinary headers).
+        request.add_unredirected_header(
+            "Authorization", "Basic {}".format(basic)
+        )
+
+        return request
     #end function
 
 #end class
