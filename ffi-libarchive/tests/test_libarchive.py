@@ -159,6 +159,37 @@ def test_the_inner_reader_keeps_the_outer_alive(deb):
     assert len(list(e.pathname for e in inner)) == len(DATA)
 
 
+@pytest.mark.parametrize("call", [1, 3])
+def test_an_interrupt_while_reading_the_outer_archive_gets_through(deb, call):
+    # What the scan worker's SIGTERM handler raises: it must neither be
+    # swallowed by ctypes nor turn into a short read. The first call to
+    # the callback is made while the inner reader is opened. The callback
+    # looks up _parent first thing, so that's where the signal "arrives".
+    class InterruptedReader(ArchiveFileReader):
+        calls = 0
+
+        @property
+        def _parent(self):
+            InterruptedReader.calls += 1
+            if InterruptedReader.calls == call:
+                raise SystemExit(143)
+            return self.__dict__["_parent"]
+
+        @_parent.setter
+        def _parent(self, parent):
+            self.__dict__["_parent"] = parent
+
+    with ArchiveFileReader(str(deb)) as outer:
+        for entry in outer:
+            if not entry.pathname.startswith("data.tar."):
+                continue
+            with pytest.raises(SystemExit):
+                with InterruptedReader(outer) as inner:
+                    for e in inner:
+                        inner.read_data()
+    #end with
+
+
 def test_a_corrupt_inner_archive_raises(tmp_path):
     path = tmp_path / "bad.deb"
     with ArchiveFileWriter(str(path), libarchive.FORMAT_AR_SVR4,

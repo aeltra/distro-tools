@@ -268,8 +268,9 @@ lib.archive_write_set_option.restype = ctypes.c_int
 
 def error_string(c_archive_p):
     # NULL when nothing set an error, e.g. a read callback that failed.
+    # Not necessarily UTF-8 either: messages may quote pathnames.
     msg = lib.archive_error_string(c_archive_p)
-    return msg.decode("utf-8") if msg else "unknown error"
+    return msg.decode("utf-8", "replace") if msg else "unknown error"
 
 class ArchiveError(Exception):
     pass
@@ -692,14 +693,16 @@ class ArchiveFileReader:
         self._parent        = None
         self._child         = None
         self._read_buffer   = None
-        self._read_callback = None
-        self._read_error    = None
+        self._read_callback  = None
+        self._read_error     = None
+        self._read_interrupt = None
 
         try:
             self.__init_helper(source, cmd=cmd, raw=raw)
         except Exception:
             msg = self._error_string()
             self.close()
+            self._raise_interrupt()
             raise ArchiveError(msg)
         #end try
     #end function
@@ -760,7 +763,9 @@ class ArchiveFileReader:
         #
         # Called from within libarchive: an exception must not get out,
         # because ctypes would only print it and return 0, which reads
-        # as the end of the data.
+        # as the end of the data. That includes SystemExit and
+        # KeyboardInterrupt from a signal handler, which are raised
+        # again once libarchive has returned.
         #
         try:
             parent = self._parent
@@ -783,7 +788,17 @@ class ArchiveFileReader:
         except Exception as e:
             self._read_error = str(e)
             return STATUS_FATAL
+        except BaseException as e:
+            self._read_error     = "interrupted"
+            self._read_interrupt = e
+            return STATUS_FATAL
         #end try
+    #end function
+
+    def _raise_interrupt(self):
+        interrupt, self._read_interrupt = self._read_interrupt, None
+        if interrupt is not None:
+            raise interrupt
     #end function
 
     def _close_child(self):
@@ -847,6 +862,10 @@ class ArchiveFileReader:
 
         rval = lib.archive_read_next_header2(self._c_archive_p,
                 archive_entry._c_entry_p)
+
+        if self._read_interrupt is not None:
+            archive_entry.free()
+            self._raise_interrupt()
 
         if rval == STATUS_EOF:
             archive_entry.free()
@@ -923,6 +942,7 @@ class ArchiveFileReader:
 
         rval = lib.archive_read_data(self._c_archive_p,
                 ctypes.addressof(buf), size)
+        self._raise_interrupt()
         if rval < 0:
             raise ArchiveError(self._error_string())
 
