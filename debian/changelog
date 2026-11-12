@@ -1,3 +1,11 @@
+aeltra-distro-tools (1.14.2-1) unstable; urgency=medium
+
+  * package: python3-aeltra-package depends on gpg, which verifies the
+    signature of a Debian release's InRelease file. Without it no
+    Debian package index could be loaded.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Thu, 12 Nov 2026 15:35:07 +0300
+
 aeltra-distro-tools (1.14.1-1) unstable; urgency=medium
 
   * distro-info: the downloader is imported only when the release and
