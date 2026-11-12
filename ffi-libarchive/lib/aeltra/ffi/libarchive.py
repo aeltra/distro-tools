@@ -292,7 +292,7 @@ class ArchiveError(Exception):
 class ArchiveEntry:
 
     def __init__(self):
-        self._c_entry_p = lib.archive_entry_new()
+        self.__c_entry_p = lib.archive_entry_new()
 
     def __del__(self):
         self.free()
@@ -303,10 +303,18 @@ class ArchiveEntry:
     def __exit__(self, exc_type, exc_value, traceback):
         self.free()
 
+    @property
+    def _c_entry_p(self):
+        # libarchive would dereference the NULL pointer of a freed entry.
+        if not self.__c_entry_p:
+            raise ArchiveError("the archive entry has been freed")
+        return self.__c_entry_p
+    #end function
+
     def free(self):
-        if self._c_entry_p:
-            lib.archive_entry_free(self._c_entry_p)
-            self._c_entry_p = None
+        if self.__c_entry_p:
+            lib.archive_entry_free(self.__c_entry_p)
+            self.__c_entry_p = None
     #end function
 
     def clear(self):
@@ -847,12 +855,16 @@ class ArchiveFileReader:
         self.close()
 
     def __iter__(self):
+        #
+        # Each entry frees itself once nothing refers to it any more: in
+        # a loop, when the next one takes its place. Freeing it here would
+        # leave an entry the caller kept around pointing at nothing.
+        #
         while True:
             archive_entry = self.next_entry()
             if archive_entry is None:
                 break
             yield archive_entry
-            archive_entry.free()
         #end while
     #end function
 

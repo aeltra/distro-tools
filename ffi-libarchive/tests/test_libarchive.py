@@ -190,6 +190,27 @@ def test_an_interrupt_while_reading_the_outer_archive_gets_through(deb, call):
     #end with
 
 
+def test_entries_stay_valid_after_the_loop_moves_on(deb):
+    with ArchiveFileReader(str(deb)) as outer:
+        entries = list(outer)
+    assert [e.pathname for e in entries] \
+        == ["debian-binary", "control.tar.gz", entries[2].pathname]
+
+
+def test_a_freed_entry_raises_instead_of_crashing():
+    entry = ArchiveEntry()
+    entry.pathname = "f"
+    entry.free()
+
+    with pytest.raises(ArchiveError, match="freed"):
+        entry.pathname
+    with pytest.raises(ArchiveError, match="freed"):
+        entry.size = 1
+
+    # Freeing twice is harmless.
+    entry.free()
+
+
 def test_a_corrupt_inner_archive_raises(tmp_path):
     path = tmp_path / "bad.deb"
     with ArchiveFileWriter(str(path), libarchive.FORMAT_AR_SVR4,
