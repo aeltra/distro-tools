@@ -29,6 +29,7 @@ import ctypes
 import stat
 import pwd
 import grp
+import weakref
 
 from ctypes.util import find_library
 
@@ -61,6 +62,7 @@ COMPRESSION_ZSTD = 20
 
 STATUS_OK = 0
 STATUS_EOF = 1
+STATUS_FATAL = -30
 
 ################################### CTYPES ####################################
 
@@ -226,6 +228,26 @@ lib.archive_read_next_header2.restype = ctypes.c_int
 lib.archive_read_open_filename.argtypes = \
     [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_ulong]
 lib.archive_read_open_filename.restype = ctypes.c_int
+lib.archive_read_open_fd.argtypes = \
+    [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t]
+lib.archive_read_open_fd.restype = ctypes.c_int
+
+# la_ssize_t (*)(struct archive *, void *client_data, const void **buffer)
+ARCHIVE_READ_CALLBACK = ctypes.CFUNCTYPE(
+    ctypes.c_ssize_t,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_void_p)
+)
+
+lib.archive_read_open.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ARCHIVE_READ_CALLBACK,
+    ctypes.c_void_p
+]
+lib.archive_read_open.restype = ctypes.c_int
 lib.archive_read_support_filter_all.argtypes = [ctypes.c_void_p]
 lib.archive_read_support_filter_all.restype = ctypes.c_int
 lib.archive_read_support_filter_program.argtypes = \
@@ -245,7 +267,9 @@ lib.archive_write_set_option.restype = ctypes.c_int
 ############################### IMPLEMENTATION ################################
 
 def error_string(c_archive_p):
-    return lib.archive_error_string(c_archive_p).decode("utf-8")
+    # NULL when nothing set an error, e.g. a read callback that failed.
+    msg = lib.archive_error_string(c_archive_p)
+    return msg.decode("utf-8") if msg else "unknown error"
 
 class ArchiveError(Exception):
     pass
@@ -651,19 +675,36 @@ class ArchiveFileWriter:
 
 class ArchiveFileReader:
 
-    def __init__(self, filename, cmd=None, raw=False, buf_size=4096):
-        self._c_archive_p = lib.archive_read_new()
+    def __init__(self, source, cmd=None, raw=False, buf_size=4096):
+        """
+        Reads an archive from source, which is one of:
+
+        * the name of a file,
+        * the number of a file descriptor open for reading, which is read
+          from its current position and left open,
+        * another ArchiveFileReader, whose current entry is read: an archive
+          inside an archive, decompressed as it is read and never written
+          out anywhere. It reads from the outer reader, which mustn't be
+          used until it is done; moving the outer reader on to its next
+          entry or closing it closes this one.
+        """
+        self._c_archive_p   = lib.archive_read_new()
+        self._parent        = None
+        self._child         = None
+        self._read_buffer   = None
+        self._read_callback = None
+        self._read_error    = None
 
         try:
-            self.__init_helper(filename, cmd=cmd, raw=raw)
+            self.__init_helper(source, cmd=cmd, raw=raw)
         except Exception:
-            msg = error_string(self._c_archive_p)
+            msg = self._error_string()
             self.close()
             raise ArchiveError(msg)
         #end try
     #end function
 
-    def __init_helper(self, filename, cmd=None, raw=False):
+    def __init_helper(self, source, cmd=None, raw=False):
         if cmd:
             if lib.archive_read_support_filter_program(self._c_archive_p,
                     cmd) != STATUS_OK:
@@ -687,9 +728,84 @@ class ArchiveFileReader:
                 raise Exception()
         #end if
 
-        if lib.archive_read_open_filename(self._c_archive_p,
-                filename.encode("utf-8"), 4096) != STATUS_OK:
+        if isinstance(source, ArchiveFileReader):
+            if not source._c_archive_p:
+                self._read_error = "the outer archive is closed"
+                raise Exception()
+
+            source._close_child()
+
+            self._parent        = source
+            self._read_buffer   = ctypes.create_string_buffer(64 * 1024)
+            self._read_callback = ARCHIVE_READ_CALLBACK(self._read_parent)
+
+            # A weak reference, so the outer reader doesn't keep this one
+            # alive; this one keeps the outer one alive through _parent.
+            source._child = weakref.ref(self)
+
+            rval = lib.archive_read_open(self._c_archive_p, None, None,
+                self._read_callback, None)
+        elif isinstance(source, int):
+            rval = lib.archive_read_open_fd(self._c_archive_p, source, 10240)
+        else:
+            rval = lib.archive_read_open_filename(self._c_archive_p,
+                source.encode("utf-8"), 4096)
+        #end if
+
+        if rval != STATUS_OK:
             raise Exception()
+    #end function
+
+    def _read_parent(self, c_archive_p, client_data, c_buffer_pp):
+        #
+        # Called from within libarchive: an exception must not get out,
+        # because ctypes would only print it and return 0, which reads
+        # as the end of the data.
+        #
+        try:
+            parent = self._parent
+
+            if parent is None or not parent._c_archive_p:
+                self._read_error = "the outer archive is closed"
+                return STATUS_FATAL
+            #end if
+
+            rval = lib.archive_read_data(parent._c_archive_p,
+                ctypes.addressof(self._read_buffer), len(self._read_buffer))
+
+            if rval < 0:
+                self._read_error = error_string(parent._c_archive_p)
+                return STATUS_FATAL
+            #end if
+
+            c_buffer_pp[0] = ctypes.addressof(self._read_buffer)
+            return rval
+        except Exception as e:
+            self._read_error = str(e)
+            return STATUS_FATAL
+        #end try
+    #end function
+
+    def _close_child(self):
+        child = self._child() if self._child else None
+        if child is not None:
+            child.close()
+        self._child = None
+    #end function
+
+    def _check_open(self):
+        # libarchive would dereference the NULL pointer. An inner archive
+        # is closed implicitly, when the outer one moves on.
+        if not self._c_archive_p:
+            raise ArchiveError("the archive is closed")
+    #end function
+
+    def _error_string(self):
+        # What went wrong reading the outer archive, if that's where the
+        # error lies: libarchive doesn't know.
+        if self._read_error:
+            return self._read_error
+        return error_string(self._c_archive_p)
     #end function
 
     def __del__(self):
@@ -712,12 +828,21 @@ class ArchiveFileReader:
     #end function
 
     def close(self):
+        # An inner archive first: it reads from this one.
+        self._close_child()
+
         if self._c_archive_p:
             lib.archive_read_free(self._c_archive_p)
             self._c_archive_p = None
+
+        self._parent        = None
+        self._read_callback = None
     #end function
 
     def next_entry(self):
+        self._check_open()
+        self._close_child()
+
         archive_entry = ArchiveEntry()
 
         rval = lib.archive_read_next_header2(self._c_archive_p,
@@ -731,7 +856,7 @@ class ArchiveFileReader:
             return archive_entry
         else:
             archive_entry.free()
-            raise ArchiveError(error_string(self._c_archive_p))
+            raise ArchiveError(self._error_string())
     #end function
 
     def read_data(self, size=0):
@@ -792,12 +917,14 @@ class ArchiveFileReader:
     #end function
 
     def __read_data(self, size):
+        self._check_open()
+
         buf = ctypes.create_string_buffer(size)
 
         rval = lib.archive_read_data(self._c_archive_p,
                 ctypes.addressof(buf), size)
         if rval < 0:
-            raise ArchiveError(error_string(self._c_archive_p))
+            raise ArchiveError(self._error_string())
 
         return buf[0:rval]
     #end function
