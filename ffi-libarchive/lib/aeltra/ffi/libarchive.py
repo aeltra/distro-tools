@@ -220,6 +220,8 @@ for func_name in [
 
 lib.archive_error_string.argtypes = [ctypes.c_void_p]
 lib.archive_error_string.restype = ctypes.c_char_p
+lib.archive_errno.argtypes = [ctypes.c_void_p]
+lib.archive_errno.restype = ctypes.c_int
 
 lib.archive_write_free.argtypes = [ctypes.c_void_p]
 lib.archive_write_free.restype = ctypes.c_int
@@ -612,13 +614,14 @@ class ArchiveFileWriter:
     def __init__(self, filename, archive_format, compression=None,
             options=None):
         self._c_archive_p = lib.archive_write_new()
+        self._filename = filename
         self._hardlinks = {}
 
         try:
             func = getattr(lib, _compression_functions[compression])
             func(self._c_archive_p)
         except (KeyError, AttributeError):
-            self.close()
+            self._free()
             raise ArchiveError("invalid or unsupported compression scheme.")
         #end try
 
@@ -626,7 +629,7 @@ class ArchiveFileWriter:
             func = getattr(lib, _format_functions[archive_format])
             func(self._c_archive_p)
         except (KeyError, AttributeError):
-            self.close()
+            self._free()
             raise ArchiveError("invalid or unsupported archive format.")
         #end try
 
@@ -638,21 +641,67 @@ class ArchiveFileWriter:
         if lib.archive_write_open_filename(
                 self._c_archive_p, filename.encode("utf-8")) != STATUS_OK:
             msg = error_string(self._c_archive_p)
-            self.close()
+            self._free()
             raise ArchiveError(msg)
         #end if
     #end function
 
     def __del__(self):
+        # Python reports an error raised here on stderr, so the archive
+        # being incomplete doesn't go unnoticed even if nobody closes it.
         self.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
+        if exc_type is None:
+            self.close()
+            return
+        #end if
+
+        # The archive is incomplete anyway: the error that made it so is
+        # the one to report.
+        try:
+            self.close()
+        except ArchiveError:
+            pass
+    #end function
 
     def close(self):
+        """
+        Writes out what is still buffered and finishes the compression.
+        Raises an ArchiveError if that fails, in which case the archive is
+        incomplete.
+        """
+        if not self._c_archive_p:
+            return
+
+        msg = None
+
+        try:
+            if lib.archive_write_close(self._c_archive_p) != STATUS_OK:
+                msg = error_string(self._c_archive_p)
+
+                # E.g. just "Write error", without saying why.
+                errno = lib.archive_errno(self._c_archive_p)
+                if errno > 0:
+                    msg = "{}: {}".format(msg, os.strerror(errno))
+
+                msg = "failed to write '{}': {}".format(self._filename, msg)
+            #end if
+        finally:
+            lib.archive_write_free(self._c_archive_p)
+            self._c_archive_p = None
+        #end try
+
+        if msg is not None:
+            raise ArchiveError(msg)
+    #end function
+
+    def _free(self):
+        # Without asking how closing went: for an archive that never got
+        # opened, that would only add an error of its own.
         if self._c_archive_p:
             lib.archive_write_free(self._c_archive_p)
             self._c_archive_p = None
