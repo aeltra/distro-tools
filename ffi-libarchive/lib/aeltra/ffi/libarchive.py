@@ -634,6 +634,12 @@ class ArchiveFileWriter:
         self._filename = filename
         self._hardlinks = {}
 
+        # The entry being written: libarchive cuts off data beyond its size
+        # and pads it with zeros if there is less, without a word.
+        self._entry_name    = None
+        self._entry_size    = 0
+        self._entry_written = 0
+
         if not self._c_archive_p:
             raise MemoryError("libarchive could not allocate an archive")
 
@@ -697,10 +703,13 @@ class ArchiveFileWriter:
         if not self._c_archive_p:
             return
 
-        msg = None
+        # The cause, if the last entry is short: closing would only pad it.
+        msg = self._missing_data()
 
         try:
-            if lib.archive_write_close(self._c_archive_p) != STATUS_OK:
+            rval = lib.archive_write_close(self._c_archive_p)
+
+            if rval != STATUS_OK and msg is None:
                 msg = error_string(self._c_archive_p)
 
                 # E.g. just "Write error", without saying why.
@@ -732,6 +741,10 @@ class ArchiveFileWriter:
             msg = "first argument to write_entry must be an ArchiveEntry."
             raise ValueError(msg)
 
+        msg = self._missing_data()
+        if msg is not None:
+            raise ArchiveError(msg)
+
         # automatic hardlink handling
         if entry.nlink > 1 and entry.inode:
             path = self._hardlinks.setdefault(entry.dev, {}).get(entry.inode)
@@ -746,6 +759,12 @@ class ArchiveFileWriter:
         if lib.archive_write_header(self._c_archive_p,
                 entry._c_entry_p) != STATUS_OK:
             raise ArchiveError(error_string(self._c_archive_p))
+
+        # Only a regular file has data, which a hardlink entry is not, as
+        # libarchive sees it too.
+        self._entry_name    = entry.pathname
+        self._entry_size    = entry.size if entry.is_file else 0
+        self._entry_written = 0
     #end function
 
     def write_data(self, data):
@@ -756,7 +775,30 @@ class ArchiveFileWriter:
                 data, len(data))
         if bytes_written < 0:
             raise ArchiveError(error_string(self._c_archive_p))
+
+        # What libarchive cut off, as it does beyond the entry's size. Not
+        # for the raw format, which has no sizes and takes everything.
+        if bytes_written < len(data):
+            raise ArchiveError(
+                "'{}' in '{}' has more data than its size of {} bytes"
+                .format(self._entry_name, self._filename, self._entry_size)
+            )
+        #end if
+
+        self._entry_written += bytes_written
         return bytes_written
+    #end function
+
+    def _missing_data(self):
+        if self._entry_name is None or \
+                self._entry_written >= self._entry_size:
+            return None
+        return "'{}' in '{}' is missing {} of its {} bytes".format(
+            self._entry_name,
+            self._filename,
+            self._entry_size - self._entry_written,
+            self._entry_size
+        )
     #end function
 
     def add_file(self, source_file, pathname=None, uname=None, gname=None):
