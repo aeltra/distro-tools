@@ -40,11 +40,8 @@ class Platform:
         "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     TOOLS_PATH             = "/tools/sbin:/tools/bin"
 
-    STACK_CLASH_MACHINES = [
-        "aarch64", "i686", "powerpc", "powerpc64le", "s390x", "x86_64"
-    ]
-
-    CF_PROTECTION_MACHINES     = ["i686", "x86_64"]
+    STACK_CLASH_MACHINES       = ["aarch64", "x86_64"]
+    CF_PROTECTION_MACHINES     = ["x86_64"]
     BRANCH_PROTECTION_MACHINES = ["aarch64"]
 
     @staticmethod
@@ -192,26 +189,10 @@ class Platform:
 
         if machine.startswith("aarch64"):
             template = "aarch64-linux-{}"
-        elif machine.startswith("armv4t"):
-            template = "armv4-linux-{}eabi"
-        elif machine.startswith("armv6"):
-            template = "armv6-linux-{}eabihf"
-        elif machine.startswith("armv7a"):
-            template = "armv7a-linux-{}eabihf"
-        elif re.match(r"^i\d86.*$", machine):
-            template = "i686-linux-{}"
-        elif machine.startswith("mips64el"):
-            template = "mips64el-linux-{}"
-        elif re.match(r"^mips\d*el.*$", machine):
-            template = "mipsel-linux-{}"
-        elif machine.startswith("mips64"):
-            template = "mips64-linux-{}"
-        elif re.match(r"^mips\d*$", machine):
-            template = "mips-linux-{}"
+        elif machine.startswith("loongarch64"):
+            template = "loongarch64-linux-{}"
         elif re.match(r"^(?:powerpc64|ppc64)(?:le|el).*$", machine):
             template = "powerpc64le-linux-{}"
-        elif machine.startswith("powerpc") or machine.startswith("ppc"):
-            template = "powerpc-linux-{}"
         elif machine.startswith("s390x"):
             template = "s390x-linux-{}"
         elif machine.startswith("riscv64"):

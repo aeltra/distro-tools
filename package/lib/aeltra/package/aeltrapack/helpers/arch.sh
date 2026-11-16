@@ -21,7 +21,7 @@ bh_kernel_arch_for_target()
                             -e 's/parisc64/parisc/' -e 's/ppc.*/powerpc/'  \
                             -e 's/mips.*/mips/'     -e 's/sh[234].*/sh/'   \
                             -e 's/aarch64.*/arm64/' -e 's/powerpc64.*/powerpc/' \
-                            -e 's/riscv.*/riscv/'
+                            -e 's/riscv.*/riscv/'   -e 's/loongarch.*/loongarch/'
     )
 }
 
@@ -50,6 +50,9 @@ bh_musl_arch_for_target()
             ;;
         i?86*)
             echo "i386"
+            ;;
+        loongarch64*)
+            echo "loongarch64"
             ;;
         x86_64-x32*|x32*|x86_64*x32)
             echo "x32"
@@ -117,24 +120,6 @@ bh_gcc_config_for_machine()
         aarch64*)
             echo "--enable-default-pie --enable-fix-cortex-a53-843419"
             ;;
-        armv4t*)
-            echo "--with-arch=armv4t --with-float=soft"
-            ;;
-        armv6*)
-            echo "--with-arch=armv6 --with-float=hard --with-fpu=vfp"
-            ;;
-        armv7a*)
-            echo "--with-arch=armv7-a --with-float=hard --with-fpu=vfpv3-d16"
-            ;;
-        i?86*)
-            echo "--with-tune=generic"
-            ;;
-        mips64el*)
-            echo "--with-abi=64 --with-arch=mips64r2 --with-fp-32=xx --with-madd4=no --with-lxc1-sxc1=no"
-            ;;
-        mips*el*)
-            echo "--with-abi=32 --with-arch=mips32r2 --with-fp-32=xx --with-madd4=no --with-lxc1-sxc1=no"
-            ;;
         loongarch64*)
             echo "--enable-default-pie"
             ;;
@@ -147,9 +132,6 @@ bh_gcc_config_for_machine()
                     echo "--enable-default-pie --enable-secureplt --with-abi=elfv2 --without-long-double-128 --enable-decimal-float=no"
                     ;;
             esac
-            ;;
-        powerpc*)
-            echo "--enable-secureplt --with-float=hard --with-cpu=default32 --without-long-double-128 --enable-decimal-float=no"
             ;;
         riscv64*)
             echo "--enable-default-pie --with-arch=rv64imafdc_zicsr_zicntr_ziccif_ziccrse_ziccamoa_zifencei --with-abi=lp64d"
