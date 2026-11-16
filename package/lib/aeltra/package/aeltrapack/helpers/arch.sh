@@ -102,9 +102,20 @@ bh_musl_arch_for_target()
 ###############################################################################
 bh_gcc_config_for_machine()
 {
+    local _libc=""
+
+    case "$1" in
+        *-gnu*)
+            _libc="glibc"
+            ;;
+        *)
+            _libc="musl"
+            ;;
+    esac
+
     case "$1" in
         aarch64*)
-            echo "--enable-fix-cortex-a53-843419"
+            echo "--enable-default-pie --enable-fix-cortex-a53-843419"
             ;;
         armv4t*)
             echo "--with-arch=armv4t --with-float=soft"
@@ -124,20 +135,30 @@ bh_gcc_config_for_machine()
         mips*el*)
             echo "--with-abi=32 --with-arch=mips32r2 --with-fp-32=xx --with-madd4=no --with-lxc1-sxc1=no"
             ;;
+        loongarch64*)
+            echo "--enable-default-pie"
+            ;;
         powerpc64el*|powerpc64le*|ppc64el*)
-            echo "--enable-secureplt --with-abi=elfv2 --without-long-double-128 --enable-decimal-float=no"
+            case "$_libc" in
+                glibc)
+                    echo "--enable-default-pie --enable-secureplt --with-abi=elfv2 --with-long-double-128 --with-long-double-format=ieee"
+                    ;;
+                *)
+                    echo "--enable-default-pie --enable-secureplt --with-abi=elfv2 --without-long-double-128 --enable-decimal-float=no"
+                    ;;
+            esac
             ;;
         powerpc*)
             echo "--enable-secureplt --with-float=hard --with-cpu=default32 --without-long-double-128 --enable-decimal-float=no"
             ;;
         riscv64*)
-            echo "--enable-default-pie --with-arch=rv64imafdc --with-abi=lp64d"
+            echo "--enable-default-pie --with-arch=rv64imafdc_zicsr_zicntr_ziccif_ziccrse_ziccamoa_zifencei --with-abi=lp64d"
             ;;
         s390x*)
-            echo "--enable-default-pie --with-arch=z196 --with-long-double-128"
+            echo "--enable-default-pie --with-arch=z196 --with-long-double-128 --disable-s390-excess-float-precision"
             ;;
         x86_64*)
-            echo "--with-tune=generic"
+            echo "--enable-default-pie --enable-cet --with-tune=generic"
             ;;
     esac
 }
