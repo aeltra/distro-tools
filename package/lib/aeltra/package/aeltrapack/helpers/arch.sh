@@ -95,12 +95,14 @@ bh_musl_arch_for_target()
 
 ###############################################################################
 #
-# Takes a machine name as supported by the make.sh bootstrap script and spits
-# out the default CPU optimizations with which to configure GCC.
+# Takes a target triplet (powerpc64le-linux-musl, x86_64-tools-linux-gnu) and
+# spits out the default settings with which to configure GCC. Some of them
+# depend on the libc, which is taken from the triplet.
 #
-# $1: a supported machine name
+# $1: a target triplet
 #
-# Prints the corresponding CPU default settings.
+# Prints the corresponding GCC configure options. Prints an error message to
+# stderr and returns 1 if the argument is not a target triplet.
 #
 ###############################################################################
 bh_gcc_config_for_machine()
@@ -108,11 +110,15 @@ bh_gcc_config_for_machine()
     local _libc=""
 
     case "$1" in
-        *-gnu*)
+        *-*-gnu*)
             _libc="glibc"
             ;;
-        *)
+        *-*-musl*)
             _libc="musl"
+            ;;
+        *)
+            echo "bh_gcc_config_for_machine: not a target triplet: '$1'" >&2
+            return 1
             ;;
     esac
 
