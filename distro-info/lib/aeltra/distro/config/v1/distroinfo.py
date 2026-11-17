@@ -24,10 +24,12 @@
 #
 
 import collections
+import hashlib
 import json
 import logging
 import os
 import re
+import urllib.parse
 
 from aeltra.miscellaneous.userinfo import UserInfo
 from aeltra.distro.config.error import \
@@ -45,6 +47,10 @@ class DistroInfo:
 
     base_url = "https://archive.aeltra.eu/config/v1"
 
+    # Names another location to fetch releases.json and mirrors.json from,
+    # for example a local archive during a bootstrap.
+    BASE_URL_ENV = "AELTRA_CONFIG_URL"
+
     # Every pocket a repository can have, in the order sources are listed.
     # A repository has all of them unless releases.json lists its own.
     POCKETS = ["main", "tools", "cross-tools"]
@@ -59,6 +65,10 @@ class DistroInfo:
             "cross-tools/{host_arch}",
     }
 
+    def __init__(self):
+        # Locations are compared in the spelling of _normalize_url.
+        self.base_url = self._normalize_url(self.base_url)
+
     def refresh(self, releases=False, mirrors=False, **kwargs):
         items_to_fetch = []
 
@@ -71,13 +81,14 @@ class DistroInfo:
         # which would otherwise slow down every command, even a help text.
         from aeltra.miscellaneous.downloader import Downloader
 
-        os.makedirs(UserInfo.config_folder(), exist_ok=True)
+        config_folder = self._config_folder()
+        os.makedirs(config_folder, exist_ok=True)
         downloader = Downloader()
 
         for item in items_to_fetch:
             filename  = "{}.json".format(item)
-            src_url   = '/'.join([self.base_url, filename])
-            dest_file = os.path.join(UserInfo.config_folder(), filename)
+            src_url   = '/'.join([self._base_url(), filename])
+            dest_file = os.path.join(config_folder, filename)
 
             downloader.download_tagged_file(
                 src_url, dest_file, permissions=0o0644
@@ -252,6 +263,76 @@ class DistroInfo:
 
     # HELPER
 
+    def _base_url(self):
+        """Where releases.json and mirrors.json are fetched from, in the
+        spelling of _normalize_url."""
+        base_url = os.environ.get(self.BASE_URL_ENV, "").strip()
+
+        if not base_url:
+            return self.base_url
+
+        try:
+            return self._normalize_url(base_url)
+        except ValueError as e:
+            raise DistroInfoError(
+                "{} is not usable: {}".format(self.BASE_URL_ENV, e)
+            )
+    #end function
+
+    def _config_folder(self):
+        """Where releases.json and mirrors.json are kept. The lists of
+        another location than the default one get a folder of their own,
+        named after that location, so that they never replace the regular
+        ones or those of a third location."""
+        folder   = UserInfo.config_folder()
+        base_url = self._base_url()
+
+        if base_url == self.base_url:
+            return folder
+
+        tag = hashlib.sha256(base_url.encode("utf-8")).hexdigest()[:8]
+        return os.path.join(folder, "config", tag)
+    #end function
+
+    @staticmethod
+    def _normalize_url(url):
+        """Brings the different spellings of one location into one form:
+        scheme and host in lower case, no port where it is the default of
+        the scheme, no repeated or trailing slashes in the path. Raises a
+        ValueError for anything that is not a plain HTTP(S) location."""
+        default_ports = {"http": 80, "https": 443}
+
+        parts  = urllib.parse.urlsplit(url)
+        scheme = parts.scheme.lower()
+        host   = parts.hostname
+
+        if scheme not in default_ports:
+            raise ValueError("'{}' is not an http or https URL".format(url))
+        if not host:
+            raise ValueError("'{}' names no host".format(url))
+        if parts.query or parts.fragment:
+            raise ValueError(
+                "'{}' must not have a query or fragment".format(url)
+            )
+
+        try:
+            port = parts.port
+        except ValueError:
+            raise ValueError("'{}' has an invalid port".format(url))
+
+        netloc = "[{}]".format(host) if ":" in host else host
+
+        if port is not None and port != default_ports[scheme]:
+            netloc = "{}:{}".format(netloc, port)
+        if parts.username is not None:
+            userinfo = parts.netloc.rpartition("@")[0]
+            netloc   = "{}@{}".format(userinfo, netloc)
+
+        path = re.sub(r"/+", "/", parts.path).rstrip("/")
+
+        return urllib.parse.urlunsplit((scheme, netloc, path, "", ""))
+    #end function
+
     def _repository_info(self, release, repository):
         repositories = self.find(release).get("repositories", {})
 
@@ -269,7 +350,7 @@ class DistroInfo:
         result = collections.OrderedDict()
 
         json_file = os.path.join(
-            UserInfo.config_folder(), "{}.json".format(which)
+            self._config_folder(), "{}.json".format(which)
         )
 
         if not os.path.exists(json_file):

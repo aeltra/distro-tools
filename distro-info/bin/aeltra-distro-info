@@ -68,6 +68,12 @@ def print_usage():
           -h, --help           Print this help message.
           --api-version VER    API version (default: 1)
 
+        ENVIRONMENT:
+
+          AELTRA_CONFIG_URL    Fetch the lists from this location instead of
+                               the Aeltra archive. They are kept apart from
+                               the regular ones.
+
         Type `aeltra-distro-info <command> --help` for information about
         individual commands.\
         """

@@ -31,6 +31,7 @@ def info(monkeypatch, tmp_path):
     monkeypatch.setattr(
         v1_module.UserInfo, "config_folder", lambda: str(tmp_path)
     )
+    monkeypatch.delenv("AELTRA_CONFIG_URL", raising=False)
     return DistroInfo()
 
 
