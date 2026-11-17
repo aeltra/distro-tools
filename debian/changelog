@@ -1,3 +1,34 @@
+aeltra-distro-tools (1.16.0-1) unstable; urgency=medium
+
+  * distro-info: AELTRA_CONFIG_URL names another location to fetch
+    releases.json and mirrors.json from than archive.aeltra.eu, for
+    example a local archive during a bootstrap. Its lists are cached in
+    ~/.aeltra/config/<tag>, with <tag> being the first 8 hex digits of
+    the SHA-256 of the URL, so the regular lists are left alone and
+    switching between locations needs no cleanup. URLs are normalised
+    before they are compared and hashed, and anything but a plain http
+    or https URL is refused.
+  * misc: the downloader's cache tag includes the URL. Two files from a
+    server that sends no ETag and the same modification time got the
+    same tag, and the second download replaced the cached copy of the
+    first. Existing tags change with this, so cached files are fetched
+    once more.
+  * Only the six supported architectures are known: aarch64, riscv64
+    and x86_64 (primary), loongarch64, powerpc64le and s390x
+    (secondary). loongarch64 is new, the 32 bit and mips architectures
+    are gone.
+  * misc: stack clash protection is only requested on aarch64 and
+    x86_64, and control flow protection on x86_64, as dpkg does.
+  * package: bh_gcc_config_for_machine follows the GCC configuration of
+    Debian forky and needs the GCC from there: PIE by default on all
+    architectures, CET on x86_64, the RVA20U64 baseline on riscv64, no
+    excess float precision on s390x. On powerpc64le, glibc targets get
+    an IEEE 128 bit long double, musl targets keep the 64 bit one. The
+    function expects a target triplet now, to tell the two apart, and
+    fails on anything else.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Tue, 17 Nov 2026 18:38:57 +0300
+
 aeltra-distro-tools (1.15.0-1) unstable; urgency=medium
 
   * misc: the downloader can send credentials. Downloader takes an
