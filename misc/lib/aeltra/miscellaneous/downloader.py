@@ -174,7 +174,11 @@ class Downloader:
                 "error generating etag for '{}': {}".format(url, str(e))
             )
 
+        # The URL goes in as well: a server may send no ETag and the same
+        # Last-Modified for two files, and files kept in one folder under
+        # their tags must not end up with the same one.
         sha256 = hashlib.sha256()
+        sha256.update(url.encode("utf-8"))
         sha256.update(identifier1.encode("utf-8"))
         sha256.update(identifier2.encode("utf-8"))
 
