@@ -146,7 +146,15 @@ bh_gcc_config_for_machine()
             echo "--enable-default-pie --with-arch=z196 --with-long-double-128 --disable-s390-excess-float-precision"
             ;;
         x86_64*)
-            echo "--enable-default-pie --enable-cet --with-tune=generic"
+            # musl does not support CET.
+            case "$_libc" in
+                glibc)
+                    echo "--enable-default-pie --enable-cet --with-tune=generic"
+                    ;;
+                *)
+                    echo "--enable-default-pie --disable-cet --with-tune=generic"
+                    ;;
+            esac
             ;;
     esac
 }
