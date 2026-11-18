@@ -1,3 +1,12 @@
+aeltra-distro-tools (1.16.1-1) unstable; urgency=medium
+
+  * package: bh_gcc_config_for_machine configures GCC with --disable-cet
+    for x86_64 musl targets. musl does not support CET, the markers in
+    GCC's runtime libraries would be dead weight there. glibc targets
+    keep --enable-cet.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Wed, 18 Nov 2026 22:41:46 +0300
+
 aeltra-distro-tools (1.16.0-1) unstable; urgency=medium
 
   * distro-info: AELTRA_CONFIG_URL names another location to fetch
