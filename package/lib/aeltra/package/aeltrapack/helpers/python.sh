@@ -1,29 +1,28 @@
 ###############################################################################
 #
-# Installs a Python package using distutils setup tools. Understands the
-# following parameters:
+# Builds and installs the Python project in the current directory. A wheel is
+# built by calling the build backend named in pyproject.toml directly and put
+# into the folder "dist". There is no isolated build environment, whatever the
+# backend needs has to be installed. The wheel is then installed with the
+# "installer" module. Understands the following parameters:
 #
-# --build           Run the build action.
-# --install         Run the install action.
-# --python3, --py3  Use the appropriate Python3 interpreter.
-# --python2, --py2  Use the appropriate Python2 interpreter.
-#
-# $1: The installation path.
+# --build           Build the wheel.
+# --install         Install the wheel, build it first if there is none yet
+#                   (the default).
+# --root <path>     The installation path.
+# --python3, --py3  Accepted for old recipes, Python 3 is always used.
 #
 ###############################################################################
 bh_python_install()
 {
-    local py_interp="python2"
+    local py_interp="$AELTRA_INSTALL_PREFIX/bin/python3"
     local py_action="install"
+    local py_root=""
+    local py_wheel=""
 
     while true; do
         case "$1" in
-            --python2|--py2)
-                local py_interp="python2"
-                shift
-                ;;
             --python3|--py3)
-                local py_interp="python3"
                 shift
                 ;;
             --build)
@@ -49,24 +48,54 @@ bh_python_install()
         esac
     done
 
-    local py_interp="$AELTRA_INSTALL_PREFIX/bin/$py_interp"
+    if [ $# -gt 0 ]; then
+        echo "bh_python_install: don't know what to do with '$1', there is no setup.py call to pass it to. Aborting." >&2
+        exit 17
+    fi
 
     if [ "$py_action" = "install" ]; then
         if [ -z "$py_root" ] || [ ! -d "$py_root" ]; then
-            echo "bh_python_install: invalid or empty installation path '$1', aborting." >&2
+            echo "bh_python_install: invalid or empty installation path '$py_root', aborting." >&2
             exit 17
         fi
+    fi
 
-        local py_site_packages=`$py_interp -c \
-            "from distutils import sysconfig; print(sysconfig.get_python_lib())"`
-        "$py_interp" setup.py install \
-            --force \
-            --root="$py_root" \
-            --prefix="$AELTRA_INSTALL_PREFIX" \
-            --install-lib="$py_site_packages" \
-            "$@"
-    else
-        "$py_interp" setup.py build "$@"
+    if [ "$py_action" = "build" ] || ! ls dist/*.whl > /dev/null 2>&1; then
+        "$py_interp" - <<'EOF'
+import importlib
+import os
+import sys
+import tomllib
+
+try:
+    with open("pyproject.toml", "rb") as f:
+        build_system = tomllib.load(f).get("build-system", {})
+except FileNotFoundError:
+    build_system = {}
+
+name, _, attr = build_system.get(
+    "build-backend", "setuptools.build_meta:__legacy__"
+).partition(":")
+
+sys.path[:0] = [
+    os.path.abspath(path) for path in build_system.get("backend-path", [])
+]
+
+backend = importlib.import_module(name)
+for part in filter(None, attr.split(".")):
+    backend = getattr(backend, part)
+
+os.makedirs("dist", exist_ok=True)
+backend.build_wheel("dist")
+EOF
+    fi
+
+    if [ "$py_action" = "install" ]; then
+        for py_wheel in dist/*.whl; do
+            DEB_PYTHON_INSTALL_LAYOUT="deb" "$py_interp" -m installer \
+                --destdir="$py_root" \
+                --prefix="$AELTRA_INSTALL_PREFIX" \
+                "$py_wheel"
+        done
     fi
 }
-
