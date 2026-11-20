@@ -1,3 +1,23 @@
+aeltra-distro-tools (1.17.0-1) unstable; urgency=medium
+
+  * package: a maintainer or trigger script in a recipe takes the
+    attribute interpreter="sh" (the default) or interpreter="busybox".
+    The second is for scripts that have to work without the link
+    /bin/sh, which are those of busybox; their first line is
+    "#!/bin/busybox sh", or "#!/tools/bin/busybox sh" in a tools
+    package. Any other value is refused. Needs aept 0.11.0 or later on
+    the system the package is installed on, older versions run every
+    script with /bin/sh.
+  * package: "set -e" is a line of its own in the scripts aeltra-pack
+    writes, no longer an argument in the first line, where the kernel
+    passes only one. With aept 0.11.0 it is in effect for the first
+    time: a script now stops at the first failing command.
+  * image-gen: the minimal and build-essential specs name busybox-binsh,
+    busybox-suid and busybox-ssl-client. The busybox-*-symlinks packages
+    are gone, a trigger of the busybox package creates the links.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 20 Nov 2026 09:45:08 +0300
+
 aeltra-distro-tools (1.16.1-1) unstable; urgency=medium
 
   * package: bh_gcc_config_for_machine configures GCC with --disable-cet
