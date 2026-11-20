@@ -1,3 +1,17 @@
+aeltra-distro-tools (1.18.0-1) unstable; urgency=medium
+
+  * package: bh_python_install no longer runs "setup.py install", which
+    is gone with distutils in Python 3.12 and current setuptools. It
+    builds a wheel by calling the build backend named in pyproject.toml
+    and installs it with the installer module, into
+    lib/python3/dist-packages. The options --build, --install and --root
+    work as before, --py3 is accepted and ignored, --py2 is gone.
+    Arguments for setup.py after "--" are refused. A recipe that uses
+    the helper has to require python3-installer and the build backend of
+    its project (python3-setuptools or python3-flit-core).
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Fri, 20 Nov 2026 23:28:59 +0300
+
 aeltra-distro-tools (1.17.0-1) unstable; urgency=medium
 
   * package: a maintainer or trigger script in a recipe takes the
