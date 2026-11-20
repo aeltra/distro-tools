@@ -172,23 +172,9 @@ class BinaryPackage(BasePackage):
         self.maintainer_scripts = {}
         for node in bin_node.findall("maintainer-scripts/*"):
             if node.tag in ["preinst", "postinst", "prerm", "postrm"]:
-                self.maintainer_scripts[node.tag] = textwrap.dedent(
-
-                        """\
-                    #!/bin/sh -e
-
-                    export AELTRA_INSTALL_PREFIX="%s"
-                    export AELTRA_HOST_TYPE="%s"
-                    export PATH="%s"
-
-                    if [ -d "/tools" ]; then
-                        export PATH="%s:$PATH"
-                    fi
-
-                    """ % (self.install_prefix, self.host_type,
-                           Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
-
-                ) + etree.tostring(node, method="text", encoding="unicode")
+                self.maintainer_scripts[node.tag] = \
+                    self._script_header(node) + \
+                    etree.tostring(node, method="text", encoding="unicode")
             #end if
         #end for
 
@@ -209,25 +195,9 @@ class BinaryPackage(BasePackage):
             self.triggers = "\n".join(lines) + "\n"
 
             script_node = trigger_node.find("script")
-            self.maintainer_scripts["trigger"] = textwrap.dedent(
-
-                    """\
-                #!/bin/sh -e
-
-                export AELTRA_INSTALL_PREFIX="%s"
-                export AELTRA_HOST_TYPE="%s"
-                export PATH="%s"
-
-                if [ -d "/tools" ]; then
-                    export PATH="%s:$PATH"
-                fi
-
-                """ % (self.install_prefix, self.host_type,
-                       Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
-
-            ) + etree.tostring(
-                script_node, method="text", encoding="unicode"
-            )
+            self.maintainer_scripts["trigger"] = \
+                self._script_header(script_node) + \
+                etree.tostring(script_node, method="text", encoding="unicode")
         #end if
 
         content_node = bin_node.find("contents")
@@ -624,6 +594,57 @@ class BinaryPackage(BasePackage):
         if not found:
             raise UnmetDependency("'%s' dependency '%s' not found in any "
                 "installed or built package." % (self.name, lib_name))
+    #end function
+
+    def _script_header(self, script_node):
+        """The first lines of a maintainer or trigger script. The package
+        manager runs a script with the interpreter its first line names.
+        A recipe cannot name one freely, it chooses from the ones that are
+        there on every system:
+
+        sh:      /bin/sh, the default.
+        busybox: The shell of busybox, called through busybox itself. For
+                 the scripts that have to work without the link /bin/sh,
+                 which are those of busybox.
+
+        The kernel passes what follows the interpreter as one argument,
+        so "set -e" is a line of its own."""
+        interpreter = script_node.get("interpreter", "sh")
+
+        if interpreter == "sh":
+            first_line = "#!/bin/sh"
+        elif interpreter == "busybox":
+            if self.install_prefix == "/tools":
+                first_line = "#!/tools/bin/busybox sh"
+            else:
+                first_line = "#!/bin/busybox sh"
+            #end if
+        else:
+            raise PackagingError(
+                "invalid interpreter '%s' for the %s script of '%s': "
+                "must be 'sh' or 'busybox'" %
+                    (interpreter, script_node.tag, self.name)
+            )
+        #end if
+
+        return first_line + "\n" + textwrap.dedent(
+
+                """\
+
+            set -e
+
+            export AELTRA_INSTALL_PREFIX="%s"
+            export AELTRA_HOST_TYPE="%s"
+            export PATH="%s"
+
+            if [ -d "/tools" ]; then
+                export PATH="%s:$PATH"
+            fi
+
+            """ % (self.install_prefix, self.host_type,
+                   Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
+
+        )
     #end function
 
     _TRIGGER_PATH_RE = re.compile(

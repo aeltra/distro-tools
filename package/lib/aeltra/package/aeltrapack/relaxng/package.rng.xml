@@ -409,21 +409,53 @@
                         <interleave>
                             <optional>
                                 <element name="preinst">
+                                    <optional>
+                                        <attribute name="interpreter">
+                                            <choice>
+                                                <value>sh</value>
+                                                <value>busybox</value>
+                                            </choice>
+                                        </attribute>
+                                    </optional>
                                     <text/>
                                 </element>
                             </optional>
                             <optional>
                                 <element name="postinst">
+                                    <optional>
+                                        <attribute name="interpreter">
+                                            <choice>
+                                                <value>sh</value>
+                                                <value>busybox</value>
+                                            </choice>
+                                        </attribute>
+                                    </optional>
                                     <text/>
                                 </element>
                             </optional>
                             <optional>
                                 <element name="prerm">
+                                    <optional>
+                                        <attribute name="interpreter">
+                                            <choice>
+                                                <value>sh</value>
+                                                <value>busybox</value>
+                                            </choice>
+                                        </attribute>
+                                    </optional>
                                     <text/>
                                 </element>
                             </optional>
                             <optional>
                                 <element name="postrm">
+                                    <optional>
+                                        <attribute name="interpreter">
+                                            <choice>
+                                                <value>sh</value>
+                                                <value>busybox</value>
+                                            </choice>
+                                        </attribute>
+                                    </optional>
                                     <text/>
                                 </element>
                             </optional>
@@ -443,6 +475,14 @@
                                         </element>
                                     </oneOrMore>
                                     <element name="script">
+                                        <optional>
+                                            <attribute name="interpreter">
+                                                <choice>
+                                                    <value>sh</value>
+                                                    <value>busybox</value>
+                                                </choice>
+                                            </attribute>
+                                        </optional>
                                         <text/>
                                     </element>
                                 </element>

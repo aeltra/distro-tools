@@ -3,7 +3,9 @@
 ===============================================================================
 
 +base-files
-+busybox-all-symlinks
++busybox-binsh
++busybox-suid
++busybox-ssl-client
 +aeltra-repo-keys
 +usign
 +aept

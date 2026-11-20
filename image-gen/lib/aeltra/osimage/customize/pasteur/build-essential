@@ -6,7 +6,9 @@
 ===============================================================================
 
 +base-files
-+busybox-all-symlinks
++busybox-binsh
++busybox-suid
++busybox-ssl-client
 +aept
 +aeltra-repo-keys
 +pam-config
@@ -21,8 +23,8 @@
 aept --offline-root "$AELTRA_SYSROOT" mark manual --all
 
 ===============================================================================
-= Installing mount, sysctl, file and binutils may remove some of the busybox
-= symlinks, that's why they are installed separately.
+= The full versions of some programs that busybox has applets for. The trigger
+= of the busybox package keeps the links for all other applets.
 ===============================================================================
 
 +mount
@@ -35,7 +37,7 @@ aept --offline-root "$AELTRA_SYSROOT" mark manual --all
 ===============================================================================
 
 +tools-base-files
-+tools-busybox-all-symlinks
++tools-busybox-binsh
 +tools-aept
 
 ===============================================================================
