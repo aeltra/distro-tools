@@ -1,3 +1,13 @@
+aeltra-distro-tools (1.18.1-1) unstable; urgency=medium
+
+  * image-gen: the minimal and build-essential specs no longer name
+    pam-config, which is gone. busybox now requires libpam-runtime, and
+    that brings the PAM modules and pam-utils, whose pam-auth-update
+    writes /etc/pam.d/common-*. Needs a busybox package with that
+    dependency, with an older one the images have no PAM modules.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Sat, 21 Nov 2026 23:32:17 +0300
+
 aeltra-distro-tools (1.18.0-1) unstable; urgency=medium
 
   * package: bh_python_install no longer runs "setup.py install", which
