@@ -24,6 +24,7 @@
 #
 
 import glob
+import logging
 import os
 import re
 import stat
@@ -43,6 +44,8 @@ from aeltra.package.aeltrapack.filestats import FileStats
 from aeltra.miscellaneous.braceexpand import braceexpand
 from aeltra.miscellaneous.platform import Platform
 from aeltra.miscellaneous.switch import switch
+
+LOGGER = logging.getLogger(__name__)
 
 class BinaryPackage(BasePackage):
 
@@ -258,6 +261,61 @@ class BinaryPackage(BasePackage):
         self.do_pack()
     #end function
 
+    @staticmethod
+    def default_mode(stats):
+        """
+        Returns the mode a file or directory gets in a package when its
+        entry in the package file states none: 0755 for a directory and
+        for a file that anybody may execute, 0644 for any other file. This
+        is what "chmod go=rX,u+rw,a-s" makes of the mode on disk, which
+        depends on the umask of the build and on what the build system of
+        the sources does.
+
+        So a setuid, setgid or sticky bit is dropped, and a file that
+        group or others cannot read is opened to them. Such a mode is in a
+        package only when the package file states it.
+        """
+        if stats.is_directory or (stats.mode & 0o111):
+            return 0o755
+        return 0o644
+    #end function
+
+    def apply_default_modes(self, contents):
+        """
+        Gives every directory and regular file in contents whose entry
+        states no mode the default mode, see default_mode(), and warns
+        when that takes away a setuid, setgid or sticky bit or opens what
+        group or others could not read or enter on disk.
+
+        The root directory is the folder the build installed into. Its
+        mode on disk says nothing about the package, so it gets the
+        default mode without a warning.
+        """
+        for src, attr in contents.items():
+            if attr.mode is not None:
+                continue
+            if not (attr.stats.is_directory or attr.stats.is_file):
+                continue
+
+            on_disk   = attr.stats.mode
+            attr.mode = BinaryPackage.default_mode(attr.stats)
+
+            if src == os.sep:
+                continue
+
+            special  = stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX
+            required = 0o055 if attr.stats.is_directory else 0o044
+
+            if (on_disk & special) or (on_disk & required) != required:
+                LOGGER.warning(
+                    "'%s' has mode %04o on disk and gets %04o: state "
+                    "its mode in the package file to keep it." %
+                    (src, on_disk, attr.mode)
+                )
+            #end if
+        #end for
+    #end function
+
     def generate_file_list(self):
         contents = {}
 
@@ -402,6 +460,9 @@ class BinaryPackage(BasePackage):
             self.contents = \
                 OrderedDict(sorted(set(contents.items()), key=lambda x: x[0]))
         #end if
+
+        # After the filter above: what is not in the package needs no mode.
+        self.apply_default_modes(self.contents)
 
         return self.contents
     #end function
