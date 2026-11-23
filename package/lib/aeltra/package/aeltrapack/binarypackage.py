@@ -23,6 +23,7 @@
 # THE SOFTWARE.
 #
 
+import fnmatch
 import glob
 import logging
 import os
@@ -261,23 +262,113 @@ class BinaryPackage(BasePackage):
         self.do_pack()
     #end function
 
+    # Files with these names are not executable, see default_mode().
+    MODE_0644_PATTERNS = [
+        # libraries and related files
+        "*.so.*", "*.so", "*.la", "*.a",
+        # web application related files
+        "*.js", "*.css", "*.scss", "*.sass",
+        # images
+        "*.jpeg", "*.jpg", "*.png", "*.gif",
+        # OCaml native-code shared objects
+        "*.cmxs",
+        # Node bindings
+        "*.node",
+    ]
+
     @staticmethod
-    def default_mode(stats):
+    def default_mode(src, stats, install_prefix="/usr"):
         """
         Returns the mode a file or directory gets in a package when its
-        entry in the package file states none: 0755 for a directory and
-        for a file that anybody may execute, 0644 for any other file. This
-        is what "chmod go=rX,u+rw,a-s" makes of the mode on disk, which
-        depends on the umask of the build and on what the build system of
-        the sources does.
+        entry in the package file states none. It is the one that
+        dh_fixperms of Debian's debhelper would give it, whose rules are
+        applied in the same order.
 
-        So a setuid, setgid or sticky bit is dropped, and a file that
-        group or others cannot read is opened to them. Such a mode is in a
-        package only when the package file states it.
+        First 0755 for a directory and for a file that anybody may
+        execute, 0644 for any other file. This is what "chmod
+        go=rX,u+rw,a-s" makes of the mode on disk, which depends on the
+        umask of the build and on what the build system of the sources
+        does. So a setuid, setgid or sticky bit is dropped, and a file
+        that group or others cannot read is opened to them. Such a mode is
+        in a package only when the package file states it. The one
+        difference to chmod: a file that only group or others may execute
+        is executable for its owner too.
+
+        Then, for files, by where they are and what they are called:
+
+        * not executable: documentation except examples, manual pages,
+          headers, desktop files, themes, the overrides for lintian, Perl
+          modules, and libraries, scripts for the web and images by their
+          names (MODE_0644_PATTERNS);
+        * executable: everything in the folders for programs and in
+          /etc/init.d, also when a name says otherwise;
+        * not writable: the .ali files of Ada;
+        * executable: cli.js and bin.js of a package for Node.js;
+        * 0440: the files in /etc/sudoers.d.
+
+        src is the path in the package. The folders are looked for below
+        install_prefix, where dh_fixperms has "usr".
         """
-        if stats.is_directory or (stats.mode & 0o111):
+        if stats.is_directory:
             return 0o755
-        return 0o644
+
+        mode = 0o755 if (stats.mode & 0o111) else 0o644
+
+        def below(*folders):
+            for folder in folders:
+                if src.startswith(folder.rstrip(os.sep) + os.sep):
+                    return True
+            return False
+        #end inline function
+
+        prefix = install_prefix.rstrip(os.sep)
+        name   = os.path.basename(src)
+
+        doc_dir = prefix + "/share/doc"
+
+        if below(doc_dir) and not re.match(
+                re.escape(doc_dir) + r"/[^/]*/examples/.*", src):
+            mode = 0o644
+
+        if below(
+            prefix + "/share/man",
+            prefix + "/include",
+            prefix + "/share/applications",
+            prefix + "/share/lintian/overrides",
+            prefix + "/share/themes"
+        ):
+            mode = 0o644
+
+        if name.endswith(".pm") and (mode & 0o005) == 0o005 and \
+                below(prefix + "/lib/perl5", prefix + "/share/perl5"):
+            mode &= ~0o111
+
+        for pattern in BinaryPackage.MODE_0644_PATTERNS:
+            if fnmatch.fnmatchcase(name, pattern):
+                mode = 0o644
+                break
+
+        if below(
+            prefix + "/bin",
+            "/bin",
+            prefix + "/sbin",
+            "/sbin",
+            prefix + "/games",
+            prefix + "/libexec",
+            "/etc/init.d"
+        ):
+            mode |= 0o111
+
+        if name.endswith(".ali") and below(prefix + "/lib"):
+            mode &= ~0o222
+
+        if name in ["cli.js", "bin.js"] and below(prefix + "/lib/nodejs"):
+            mode = 0o755
+
+        if below("/etc/sudoers.d"):
+            mode = 0o440
+
+        return mode
     #end function
 
     def apply_default_modes(self, contents):
@@ -298,15 +389,18 @@ class BinaryPackage(BasePackage):
                 continue
 
             on_disk   = attr.stats.mode
-            attr.mode = BinaryPackage.default_mode(attr.stats)
+            attr.mode = BinaryPackage.default_mode(
+                src, attr.stats, self.install_prefix
+            )
 
             if src == os.sep:
                 continue
 
-            special  = stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX
-            required = 0o055 if attr.stats.is_directory else 0o044
+            special = stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX
+            opened  = attr.mode & ~on_disk & \
+                (0o055 if attr.stats.is_directory else 0o044)
 
-            if (on_disk & special) or (on_disk & required) != required:
+            if (on_disk & special) or opened:
                 LOGGER.warning(
                     "'%s' has mode %04o on disk and gets %04o: state "
                     "its mode in the package file to keep it." %

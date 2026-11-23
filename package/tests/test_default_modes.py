@@ -42,13 +42,15 @@ def make_dir(tmp_path, name, mode):
 ])
 def test_file_gets_default_mode(tmp_path, on_disk, expected):
     stats = make_file(tmp_path, "file", on_disk)
-    assert BinaryPackage.default_mode(stats) == expected
+    assert BinaryPackage.default_mode("/usr/share/tool/file", stats) == \
+        expected
 
 
 @pytest.mark.parametrize("on_disk", [0o755, 0o775, 0o777, 0o555])
 def test_directory_gets_0755(tmp_path, on_disk):
     stats = make_dir(tmp_path, "dir", on_disk)
-    assert BinaryPackage.default_mode(stats) == 0o755
+    assert BinaryPackage.default_mode("/usr/share/tool/dir", stats) == \
+        0o755
 
 
 @pytest.mark.parametrize("on_disk, expected", [
@@ -67,7 +69,8 @@ def test_directory_gets_0755(tmp_path, on_disk):
 def test_file_with_unusual_mode_gets_default_mode(tmp_path, on_disk,
         expected):
     stats = make_file(tmp_path, "file", on_disk)
-    assert BinaryPackage.default_mode(stats) == expected
+    assert BinaryPackage.default_mode("/usr/share/tool/file", stats) == \
+        expected
 
 
 @pytest.mark.parametrize("on_disk", [
@@ -75,12 +78,108 @@ def test_file_with_unusual_mode_gets_default_mode(tmp_path, on_disk,
 ])
 def test_directory_with_unusual_mode_gets_0755(tmp_path, on_disk):
     stats = make_dir(tmp_path, "dir", on_disk)
-    assert BinaryPackage.default_mode(stats) == 0o755
+    assert BinaryPackage.default_mode("/usr/share/tool/dir", stats) == \
+        0o755
+
+
+class Prefix:
+    install_prefix = "/usr"
 
 
 def apply(contents):
-    # apply_default_modes() uses nothing of the object it is called on.
-    BinaryPackage.apply_default_modes(None, contents)
+    # apply_default_modes() uses nothing else of the object it is called
+    # on.
+    BinaryPackage.apply_default_modes(Prefix(), contents)
+
+
+# What dh_fixperms does by the place and the name of a file. Each line:
+# the path in the package, the mode on disk, the mode in the package.
+LOCATION_RULES = [
+    # Documentation is not executable, examples are left alone.
+    ("/usr/share/doc/tool/README",             0o755, 0o644),
+    ("/usr/share/doc/tool/html/index.html",    0o775, 0o644),
+    ("/usr/share/doc/tool/examples/run.sh",    0o755, 0o755),
+    ("/usr/share/doc/tool/examples/data.txt",  0o644, 0o644),
+    # Only the examples folder right below the folder of the package.
+    ("/usr/share/doc/tool/sub/examples/run",   0o755, 0o644),
+    # Manual pages, headers, desktop files, themes.
+    ("/usr/share/man/man1/tool.1",             0o755, 0o644),
+    ("/usr/include/tool/tool.h",               0o755, 0o644),
+    ("/usr/share/applications/tool.desktop",   0o755, 0o644),
+    ("/usr/share/lintian/overrides/tool",      0o755, 0o644),
+    ("/usr/share/themes/Tool/gtk.css",         0o755, 0o644),
+    # Perl modules.
+    ("/usr/share/perl5/Tool.pm",               0o755, 0o644),
+    ("/usr/lib/perl5/Tool/XS.pm",              0o755, 0o644),
+    ("/usr/share/tool/Tool.pm",                0o755, 0o755),
+    ("/usr/share/perl5/tool.pl",               0o755, 0o755),
+    # Libraries and other files by their names.
+    ("/usr/lib/libtool.so.1.2.3",              0o755, 0o644),
+    ("/usr/lib/libtool.so",                    0o755, 0o644),
+    ("/usr/lib/libtool.a",                     0o755, 0o644),
+    ("/usr/lib/libtool.la",                    0o755, 0o644),
+    ("/usr/lib/security/pam_tool.so",          0o755, 0o644),
+    ("/usr/share/tool/www/tool.js",            0o755, 0o644),
+    ("/usr/share/tool/www/tool.css",           0o755, 0o644),
+    ("/usr/share/tool/www/logo.png",           0o755, 0o644),
+    ("/usr/lib/ocaml/tool.cmxs",               0o755, 0o644),
+    ("/usr/lib/tool/binding.node",             0o755, 0o644),
+    ("/usr/lib/tool/helper",                   0o755, 0o755),
+    # Programs are executable, also when their name says library.
+    ("/usr/bin/tool",                          0o644, 0o755),
+    ("/usr/sbin/toold",                        0o644, 0o755),
+    ("/bin/tool",                              0o644, 0o755),
+    ("/sbin/toold",                            0o644, 0o755),
+    ("/usr/games/tool",                        0o644, 0o755),
+    ("/usr/libexec/tool/helper",               0o644, 0o755),
+    ("/usr/libexec/tool/plugin.so",            0o755, 0o755),
+    ("/usr/bin/tool.js",                       0o755, 0o755),
+    ("/etc/init.d/tool",                       0o644, 0o755),
+    ("/usr/share/tool/bin/tool",               0o644, 0o644),
+    # The .ali files of Ada are read-only.
+    ("/usr/lib/ada/adalib/tool/tool.ali",      0o644, 0o444),
+    ("/usr/share/tool/tool.ali",               0o644, 0o644),
+    # The programs of a package for Node.js.
+    ("/usr/lib/nodejs/tool/cli.js",            0o644, 0o755),
+    ("/usr/lib/nodejs/tool/sub/bin.js",        0o644, 0o755),
+    ("/usr/lib/nodejs/tool/index.js",          0o755, 0o644),
+    # sudo refuses a file that others can read.
+    ("/etc/sudoers.d/tool",                    0o644, 0o440),
+    ("/etc/sudoers.d/tool",                    0o440, 0o440),
+]
+
+
+@pytest.mark.parametrize("src, on_disk, expected", LOCATION_RULES)
+def test_mode_by_place_and_name(tmp_path, src, on_disk, expected):
+    stats = make_file(tmp_path, "file", on_disk)
+    assert BinaryPackage.default_mode(src, stats) == expected
+
+
+@pytest.mark.parametrize("src, on_disk, expected", [
+    ("/tools/bin/tool",              0o644, 0o755),
+    ("/tools/lib/libtool.so.1",      0o755, 0o644),
+    ("/tools/include/tool.h",        0o755, 0o644),
+    ("/tools/share/doc/tool/README", 0o755, 0o644),
+    # Not a folder for programs with this prefix.
+    ("/usr/bin/tool",                0o644, 0o644),
+])
+def test_places_follow_the_install_prefix(tmp_path, src, on_disk, expected):
+    stats = make_file(tmp_path, "file", on_disk)
+    assert BinaryPackage.default_mode(src, stats, "/tools") == expected
+
+
+def test_no_warning_for_sudoers_file_that_stays_0440(tmp_path, caplog):
+    contents = {
+        "/etc/sudoers.d/tool": BinaryPackage.EntryAttributes({
+            "stats": make_file(tmp_path, "tool", 0o440),
+        }),
+    }
+
+    with caplog.at_level(logging.WARNING):
+        apply(contents)
+
+    assert contents["/etc/sudoers.d/tool"].mode == 0o440
+    assert caplog.records == []
 
 
 def test_stated_mode_is_kept(tmp_path):
@@ -172,7 +271,7 @@ def test_symbolic_link_is_left_alone(tmp_path):
 def test_warning_for_file_names_path_and_modes(tmp_path, caplog, on_disk,
         in_package):
     contents = {
-        "/usr/bin/su": BinaryPackage.EntryAttributes({
+        "/usr/lib/tool/su": BinaryPackage.EntryAttributes({
             "stats": make_file(tmp_path, "su", on_disk),
         }),
     }
@@ -180,9 +279,9 @@ def test_warning_for_file_names_path_and_modes(tmp_path, caplog, on_disk,
     with caplog.at_level(logging.WARNING):
         apply(contents)
 
-    assert contents["/usr/bin/su"].mode == in_package
+    assert contents["/usr/lib/tool/su"].mode == in_package
     assert len(caplog.records) == 1
-    assert "'/usr/bin/su' has mode %04o on disk and gets %04o" % \
+    assert "'/usr/lib/tool/su' has mode %04o on disk and gets %04o" % \
         (on_disk, in_package) in caplog.text
     assert "state its mode in the package file" in caplog.text
 
@@ -298,6 +397,28 @@ def test_file_list_of_a_package(package):
         "/usr/bin/tool":  0o755,
         "/var/lib/tool":  0o750,
     }
+
+
+def test_stated_mode_wins_over_the_rule_for_libraries(tmp_path):
+    # As for libc.so of musl, which is the dynamic loader too.
+    xml = PACKAGE_XML.replace(
+        '<file src="/etc/tool.conf"/>',
+        '<file src="${prefix}/lib/libc.so" mode="0755"/>\n'
+        '        <file src="${prefix}/lib/*.so*"/>'
+    )
+    pkg = BinaryPackage(xml, debug_pkgs=False)
+    pkg.basedir = str(make_tree(tmp_path))
+
+    libdir = tmp_path / "usr" / "lib"
+    libdir.mkdir()
+    for name in ("libc.so", "libtool.so.1"):
+        (libdir / name).write_text("content\n")
+        os.chmod(libdir / name, 0o755)
+
+    pkg.prepare()
+
+    assert pkg.contents["/usr/lib/libc.so"].mode == 0o755
+    assert pkg.contents["/usr/lib/libtool.so.1"].mode == 0o644
 
 
 def test_file_list_drops_unstated_setuid_bit(package, caplog):
