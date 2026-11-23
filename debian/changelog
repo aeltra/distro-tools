@@ -1,3 +1,28 @@
+aeltra-distro-tools (1.19.0-1) unstable; urgency=medium
+
+  * package: aeltra-pack gives every file and directory of a package a
+    default mode unless the package file states one (mode="..."), as
+    dh_fixperms of debhelper does. Until now the mode was taken from
+    the install folder, so it depended on the umask of the build and on
+    the build system of the sources. The default is 0755 for a directory
+    and for a file that somebody may execute, 0644 for any other file. A
+    setuid, setgid or sticky bit is dropped, and what group and others
+    could not read is opened to them: aeltra-pack warns about each such
+    file, the build goes on. A recipe has to state these modes in its
+    package files to keep them.
+  * package: the rules of dh_fixperms for places and names apply too.
+    Not executable: documentation (but examples), manual pages, headers,
+    desktop files, themes, Perl modules, and libraries (*.so, *.so.*,
+    *.a, *.la), scripts for the web and images by their names.
+    Executable: what is in bin, sbin, games, libexec and /etc/init.d.
+    Files in /etc/sudoers.d are 0440. A shared library that has to stay
+    executable needs its mode in the package file, the libc.so of musl
+    for example, which is the dynamic loader too.
+  * package: tests for the above (package/tests), run by tox like the
+    ones of the other parts.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Mon, 23 Nov 2026 23:38:52 +0300
+
 aeltra-distro-tools (1.18.1-1) unstable; urgency=medium
 
   * image-gen: the minimal and build-essential specs no longer name
