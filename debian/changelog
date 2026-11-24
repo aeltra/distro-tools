@@ -1,3 +1,18 @@
+aeltra-distro-tools (1.19.1-1) unstable; urgency=medium
+
+  * ffi-libarchive: unpack_to_disk(), with which aeltra-pack and
+    deb2aeltra unpack sources, accepts hard links. A hard link has to
+    lead to a regular file that came before it in the same archive and
+    may not carry data, any other one is refused. The sources of strace
+    need this.
+  * ffi-libarchive: a cpio archive may mark a folder or a symbolic link
+    as a hard link, which was not noticed. A crafted archive could thus
+    make a hard link to a file outside of the folder it was unpacked to,
+    overwrite that file with zeros and change its mode. Such entries are
+    refused now.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Tue, 24 Nov 2026 20:11:02 +0300
+
 aeltra-distro-tools (1.19.0-1) unstable; urgency=medium
 
   * package: aeltra-pack gives every file and directory of a package a
