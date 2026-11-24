@@ -1077,11 +1077,16 @@ class ArchiveFileReader:
     def unpack_to_disk(self, base_dir=".", strip_components=0,
             sane_file_modes=True):
         """
-        Unpacks directories, regular files and symbolic links below
-        base_dir and refuses any other kind of entry. Modes are kept as
-        they are, except for the setuid, setgid and sticky bits, which are
-        dropped; with sane_file_modes the owner may also always read and
-        write files and enter directories. Owners are not restored.
+        Unpacks directories, regular files, symbolic links and hard links
+        below base_dir and refuses any other kind of entry. Modes are kept
+        as they are, except for the setuid, setgid and sticky bits, which
+        are dropped; with sane_file_modes the owner may also always read
+        and write files and enter directories. Owners are not restored.
+
+        A hard link has to lead to a regular file that came before it in
+        the same archive and may not carry data. The name of that file is
+        treated like the name of an entry, so it can't lead out of
+        base_dir, nor to anything that was there before.
 
         The writing is left to libarchive, which refuses to write to a
         path that contains ".." or that leads through a symbolic link, so
@@ -1096,6 +1101,9 @@ class ArchiveFileReader:
         if not c_disk_p:
             raise MemoryError("libarchive could not allocate an archive")
 
+        # The regular files written so far, which hard links may lead to.
+        files = set()
+
         try:
             lib.archive_write_disk_set_options(
                 c_disk_p,
@@ -1107,18 +1115,30 @@ class ArchiveFileReader:
 
             for entry in self:
                 name = entry.pathname
-
-                pathname = name.strip()
-                pathname = re.sub(r"^(?:\.+/+)", "", pathname)
-                pathname = pathname.lstrip(os.sep)
-
-                components = pathname.split(os.sep)[strip_components:]
+                components = self._path_on_disk(name, strip_components)
 
                 # base_dir itself, or above where the stripping starts.
-                if not "".join(components):
+                if not components:
                     continue
 
-                if entry.is_directory:
+                # First, because cpio may mark an entry of any type as a
+                # hard link and libarchive then makes it one.
+                if entry.is_hardlink:
+                    target = self._path_on_disk(entry.hardlink,
+                            strip_components)
+
+                    if entry.filetype not in (0, stat.S_IFREG) \
+                            or entry.size > 0 \
+                            or target == components \
+                            or target not in files:
+                        raise ArchiveError(
+                            "refusing to create '%s' as a hard link to '%s'."
+                            % (name, entry.hardlink)
+                        )
+
+                    entry.hardlink = os.sep.join((base_dir, ) + target)
+                    sane_mode = None
+                elif entry.is_directory:
                     sane_mode = 0o700
                 elif entry.is_file:
                     sane_mode = 0o600
@@ -1138,10 +1158,15 @@ class ArchiveFileReader:
                     entry.mode = entry.filetype | mode
                 #end if
 
-                entry.pathname = os.sep.join([base_dir, ] + components)
+                entry.pathname = os.sep.join((base_dir, ) + components)
 
                 self._check_disk_status(c_disk_p, name,
                     lib.archive_write_header(c_disk_p, entry._c_entry_p))
+
+                if entry.is_file or entry.is_hardlink:
+                    files.add(components)
+                else:
+                    files.discard(components)
 
                 if entry.is_file:
                     for chunk in iter(lambda: self.read_data(65536), b""):
@@ -1163,6 +1188,23 @@ class ArchiveFileReader:
         finally:
             lib.archive_write_free(c_disk_p)
         #end try
+    #end function
+
+    @staticmethod
+    def _path_on_disk(name, strip_components):
+        """
+        Splits the name of an entry, or of what a hard link leads to, into
+        the components of its path below the folder it is unpacked to. The
+        result is empty if there is nothing left after the stripping.
+        """
+        pathname = name.strip()
+        pathname = re.sub(r"^(?:\.+/+)", "", pathname)
+        pathname = pathname.lstrip(os.sep)
+
+        return tuple(
+            c for c in pathname.split(os.sep)[strip_components:]
+            if c not in ("", ".")
+        )
     #end function
 
     @staticmethod

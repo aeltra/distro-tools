@@ -29,6 +29,19 @@ def make_tar(path, members):
     return str(path)
 
 
+def make_cpio(path, members):
+    """members: name, mode with type, inode, data; same inode, hard link"""
+    with open(str(path), "wb") as f:
+        for name, mode, inode, data in members + [("TRAILER!!!", 0, 0, b"")]:
+            name   = name.encode("utf-8") + b"\0"
+            fields = [inode, mode, 0, 0, 2 if inode else 1, 1700000000,
+                len(data), 8, 1, 0, 0, len(name), 0]
+            header = b"070701" + b"".join(b"%08X" % n for n in fields) + name
+            for part in (header, data):
+                f.write(part + b"\0" * (-len(part) % 4))
+    return str(path)
+
+
 def unpack(path, base_dir, **kwargs):
     with ArchiveFileReader(path) as archive:
         archive.unpack_to_disk(str(base_dir), **kwargs)
@@ -130,7 +143,6 @@ def test_absolute_names_are_unpacked_below_base_dir(tree):
 @pytest.mark.parametrize("kind", [
     member("fifo", tarfile.FIFOTYPE),
     member("chr", tarfile.CHRTYPE, devmajor=1, devminor=3),
-    member("hard", tarfile.LNKTYPE, linkname="f"),
 ])
 def test_other_kinds_of_entries_are_refused(tree, kind):
     path = make_tar(tree / "src.tar", [member("f", data=b"x"), kind])
@@ -177,3 +189,166 @@ def test_entries_above_the_stripped_components_are_skipped(tree):
     assert os.listdir(str(tree / "out")) == ["f"]
     # The archive's "./" doesn't change base_dir's own mode.
     assert mode_of(tree / "out") == 0o755
+
+
+LNK = tarfile.LNKTYPE
+
+
+def same_file(a, b):
+    a, b = os.lstat(str(a)), os.lstat(str(b))
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
+
+
+@pytest.mark.parametrize("linkname", [
+    "pkg/d/f", "./pkg/d/f", "/pkg/d/f", "pkg//d/./f",
+])
+def test_hard_links_are_unpacked(tree, linkname):
+    path = make_tar(tree / "src.tar", [
+        member("pkg/d/f", mode=0o640, data=b"x"),
+        # The mode is the file's, whatever the entry says.
+        member("pkg/e/l", LNK, mode=0o4777, linkname=linkname),
+        # To a link, which is a name of the file like the first one.
+        member("./pkg/e/m", LNK, linkname="pkg/e/l"),
+    ])
+    unpack(path, tree / "out", strip_components=1)
+
+    out = tree / "out"
+    assert same_file(out / "d" / "f", out / "e" / "l")
+    assert same_file(out / "d" / "f", out / "e" / "m")
+    assert (out / "e" / "l").read_bytes() == b"x"
+    assert mode_of(out / "d" / "f") == 0o640
+    assert os.lstat(str(out / "d" / "f")).st_mtime == 1700000000
+
+
+@pytest.mark.parametrize("strip", [0, 1])
+@pytest.mark.parametrize("linkname", [
+    "pkg/missing",                   # not in the archive
+    "pkg/late",                      # only after the link
+    "pkg/hard",                      # the link itself
+    "pkg/d",                         # a folder
+    "pkg/sym",                       # a symbolic link
+    "pkg/dirsym/secret",             # through a symbolic link
+    "pkg/there",                     # only in base_dir
+    "there",
+    "pkg",                           # nothing left of it when stripped
+    "../outside/secret",
+    "pkg/../../outside/secret",
+    "pkg/d/../f",                    # inside, but not a plain path
+    "@OUTSIDE@/secret",              # absolute
+])
+def test_hard_links_to_anything_else_are_refused(tree, strip, linkname):
+    outside = str(tree / "outside")
+    secret  = tree / "outside" / "secret"
+    secret.write_bytes(b"secret")
+    (tree / "out" / "there").write_bytes(b"there")
+    (tree / "out" / "pkg").mkdir()
+    (tree / "out" / "pkg" / "there").write_bytes(b"there")
+
+    path = make_tar(tree / "evil.tar", [
+        member("pkg/f", data=b"x"),
+        member("pkg/d/", tarfile.DIRTYPE, 0o755),
+        member("pkg/sym", tarfile.SYMTYPE, linkname=outside + "/secret"),
+        member("pkg/dirsym", tarfile.SYMTYPE, linkname=outside),
+        member("pkg/hard", LNK,
+            linkname=linkname.replace("@OUTSIDE@", outside)),
+        member("pkg/late", data=b"x"),
+    ])
+    with pytest.raises(ArchiveError, match="hard link"):
+        unpack(path, tree / "out", strip_components=strip)
+
+    for base in (tree / "out", tree / "out" / "pkg"):
+        assert not os.path.lexists(str(base / "hard"))
+    assert secret.read_bytes() == b"secret"
+    assert os.lstat(str(secret)).st_nlink == 1
+
+
+def test_a_hard_link_does_not_lead_to_what_replaced_a_file(tree):
+    secret = tree / "outside" / "secret"
+    secret.write_bytes(b"secret")
+    path = make_tar(tree / "evil.tar", [
+        member("f", data=b"x"),
+        member("f", tarfile.SYMTYPE, linkname=str(secret)),
+        member("hard", LNK, linkname="f"),
+    ])
+    with pytest.raises(ArchiveError, match="hard link"):
+        unpack(path, tree / "out")
+    assert not os.path.lexists(str(tree / "out" / "hard"))
+
+
+def test_a_hard_link_is_not_written_through_a_symlink(tree):
+    path = make_tar(tree / "evil.tar", [
+        member("f", data=b"x"),
+        member("link", tarfile.SYMTYPE, linkname=str(tree / "outside")),
+        member("link/hard", LNK, linkname="f"),
+    ])
+    with pytest.raises(ArchiveError):
+        unpack(path, tree / "out")
+    assert nothing_outside(tree)
+
+
+def test_a_hard_link_replaces_what_is_there(tree):
+    secret = tree / "outside" / "secret"
+    secret.write_bytes(b"secret")
+    os.symlink(str(secret), str(tree / "out" / "a"))
+    (tree / "out" / "b").write_bytes(b"old")
+    path = make_tar(tree / "src.tar", [
+        member("f", data=b"x"),
+        member("a", LNK, linkname="f"),
+        member("b", LNK, linkname="f"),
+    ])
+    unpack(path, tree / "out")
+    for name in ("a", "b"):
+        assert same_file(tree / "out" / "f", tree / "out" / name)
+    assert secret.read_bytes() == b"secret"
+
+
+def test_replacing_one_name_of_a_file_leaves_the_other_alone(tree):
+    first = make_tar(tree / "a.tar", [
+        member("f", data=b"old"),
+        member("hard", LNK, linkname="f"),
+    ])
+    second = make_tar(tree / "b.tar", [member("hard", data=b"new")])
+    unpack(first, tree / "out")
+    unpack(second, tree / "out")
+    assert (tree / "out" / "f").read_bytes() == b"old"
+    assert (tree / "out" / "hard").read_bytes() == b"new"
+
+
+def test_a_hard_link_with_data_is_refused(tree):
+    path = make_cpio(tree / "src.cpio", [
+        ("f", stat.S_IFREG | 0o644, 5, b"old"),
+        ("hard", stat.S_IFREG | 0o644, 5, b"new"),
+    ])
+    with pytest.raises(ArchiveError, match="hard link"):
+        unpack(path, tree / "out")
+    assert (tree / "out" / "f").read_bytes() == b"old"
+
+
+@pytest.mark.parametrize("data", [b"", b"evil"])
+@pytest.mark.parametrize("mode", [
+    stat.S_IFREG | 0o666,
+    stat.S_IFDIR | 0o777,
+    stat.S_IFLNK | 0o777,
+    stat.S_IFIFO | 0o666,
+])
+def test_a_hard_link_of_any_type_stays_below_base_dir(tree, mode, data):
+    # The first name is absolute and unpacked below base_dir, the link made
+    # by libarchive would lead to the file outside.
+    secret = tree / "outside" / "secret"
+    secret.write_bytes(b"secret")
+    os.chmod(str(secret), 0o600)
+    path = make_cpio(tree / "evil.cpio", [
+        (str(secret), stat.S_IFREG | 0o644, 5, b"x"),
+        ("hard", mode, 5, data),
+    ])
+    out = tree / "out"
+    if stat.S_ISREG(mode) and not data:
+        unpack(path, out)
+        assert same_file(out / str(secret).lstrip("/"), out / "hard")
+    else:
+        with pytest.raises(ArchiveError, match="hard link"):
+            unpack(path, out)
+        assert not os.path.lexists(str(out / "hard"))
+    assert secret.read_bytes() == b"secret"
+    assert mode_of(secret) == 0o600
+    assert os.lstat(str(secret)).st_nlink == 1
