@@ -37,6 +37,7 @@ sys.path.insert(1, INSTALL_DIR + os.sep + 'lib')
 
 from aeltra.distro.config.distroinfo import DistroInfo
 from aeltra.error import AeltraError, InvocationError, SkipBuild
+from aeltra.ffi.libarchive import ArchiveError
 from aeltra.miscellaneous.logformatter import LogFormatter
 from aeltra.miscellaneous.platform import Platform
 from aeltra.miscellaneous.switch import switch
@@ -314,7 +315,7 @@ if __name__ == "__main__":
     except SkipBuild as e:
         LOGGER.error(e)
         sys.exit(AELTRA_ERR_SKIPPED)
-    except AeltraError as e:
+    except (AeltraError, ArchiveError) as e:
         LOGGER.error(e)
         sys.exit(AELTRA_ERR_RUNTIME)
     except KeyboardInterrupt:

@@ -37,6 +37,7 @@ sys.path.insert(1, INSTALL_DIR + os.sep + 'lib')
 
 from aeltra.distro.config.distroinfo import DistroInfo
 from aeltra.error import AeltraError, InvocationError
+from aeltra.ffi.libarchive import ArchiveError
 
 from aeltra.miscellaneous.appconfig import AppConfig
 from aeltra.miscellaneous.logformatter import LogFormatter
@@ -273,7 +274,7 @@ if __name__ == "__main__":
     except InvocationError as e:
         LOGGER.error(e)
         sys.exit(AELTRA_ERR_INVOCATION)
-    except AeltraError as e:
+    except (AeltraError, ArchiveError) as e:
         LOGGER.error(e)
         sys.exit(AELTRA_ERR_RUNTIME)
     except KeyboardInterrupt:
