@@ -151,6 +151,9 @@ class BinaryPackage(BasePackage):
                     .from_xml(dep_node)
         #end for
 
+        # What needs the tools folder, in a package for the target.
+        self.tools_references = []
+
         self.contents = {}
         self.content_spec = {}
         prefix_regex = re.compile("^" + re.escape("${prefix}"))
@@ -259,11 +262,6 @@ class BinaryPackage(BasePackage):
             self.generate_file_list()
         except ValueError as e:
             raise PackagingError("error generating file list: " + str(e))
-    #end function
-
-    def pack(self, shlib_cache, bin_pkgs):
-        self.shlib_deps(shlib_cache, bin_pkgs)
-        self.do_pack()
     #end function
 
     # Files with these names are not executable, see default_mode().
@@ -565,6 +563,35 @@ class BinaryPackage(BasePackage):
         return self.contents
     #end function
 
+    @staticmethod
+    def run_program(cmd, src):
+        """Run a program on the file src of the package and return what it
+        prints. Any failure stops the build."""
+        name = os.path.basename(cmd[0])
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                encoding="utf-8",
+                errors="replace",
+                env=dict(os.environ, LC_ALL="C")
+            )
+        except OSError as e:
+            raise PackagingError("unable to run '%s': %s" % (name, str(e)))
+
+        if proc.returncode != 0:
+            raise PackagingError(
+                "'%s' failed for '%s' with exit code %d: %s" %
+                (name, src, proc.returncode, proc.stdout.strip())
+            )
+        #end if
+
+        return proc.stdout
+    #end function
+
     def strip_debug_symbols_and_unarm_rpath(self):
         objcopy = Platform.find_executable(
             self.host_type + "-objcopy", "objcopy"
@@ -617,24 +644,21 @@ class BinaryPackage(BasePackage):
             # separate debug information
             if build_id:
                 cmd_list = [
-                    ([objcopy, "--only-keep-debug", src_path, dbg_path], True),
-                    ([objcopy, "--strip-unneeded",  src_path          ], True),
+                    [objcopy, "--only-keep-debug", src_path, dbg_path],
+                    [objcopy, "--strip-unneeded",  src_path          ],
                 ]
             else:
                 dbg_file = os.path.basename(dbg_path)
                 cmd_list = [
-                    ([objcopy, "--only-keep-debug", src_path, dbg_file], True),
-                    ([objcopy, "--strip-unneeded",  src_path          ], True),
-                    (
-                        [objcopy, "--add-gnu-debuglink", dbg_file, src_path],
-                        True
-                    ),
-                    (["mv", dbg_file, dbg_path], True),
+                    [objcopy, "--only-keep-debug", src_path, dbg_file],
+                    [objcopy, "--strip-unneeded",  src_path          ],
+                    [objcopy, "--add-gnu-debuglink", dbg_file, src_path],
+                    ["mv", dbg_file, dbg_path],
                 ]
 
-            for cmd, check_retval in cmd_list:
-                subprocess.run(cmd, stderr=subprocess.STDOUT,
-                        check=check_retval)
+            for cmd in cmd_list:
+                for line in self.run_program(cmd, src).splitlines():
+                    LOGGER.warning(line)
 
             if not chrpath:
                 raise PackagingError(
@@ -650,6 +674,97 @@ class BinaryPackage(BasePackage):
 
             # file size has changed
             attr.stats.restat(src_path)
+        #end for
+    #end function
+
+    # What dh_strip of debhelper passes to strip for a static library.
+    STRIP_ARCHIVE_OPTIONS = [
+        "--strip-debug",
+        "--remove-section=.comment",
+        "--remove-section=.note",
+        "--enable-deterministic-archives",
+        "-R", ".gnu.lto_*",
+        "-R", ".gnu.debuglto_*",
+        "-N", "__gnu_lto_slim",
+        "-N", "__gnu_lto_v1",
+    ]
+
+    def strip_static_libraries(self):
+        """Remove the debug information from static libraries. It is not
+        kept in the package with the debug information."""
+        # The libraries a cross compiler comes with are for its target. In
+        # any other build the host and the target are the same.
+        strip = Platform.find_executable(self.target_type + "-strip", "strip")
+
+        seen = set()
+
+        for src, attr in self.contents.items():
+            if not attr.stats.is_file or not src.endswith(".a"):
+                continue
+
+            # no need to strip hardlinked content again
+            inode = (attr.stats.device, attr.stats.inode)
+            if inode in seen:
+                continue
+            seen.add(inode)
+
+            src_path = os.path.normpath(os.sep.join([self.basedir, src]))
+
+            # A linker script may be called like a static library, and a
+            # thin archive only has references to its members.
+            with open(src_path, "rb") as f:
+                if f.read(8) != b"!<arch>\n":
+                    continue
+
+            # if u+w bit is missing strip will bail out
+            if not (attr.stats.mode & stat.S_IWUSR):
+                os.chmod(src_path, attr.stats.mode | stat.S_IWUSR)
+
+            output = self.run_program(
+                [strip, *self.STRIP_ARCHIVE_OPTIONS, src_path], src
+            )
+
+            # strip leaves the members of an archive alone that it can't
+            # handle, such as those for another machine, and is content.
+            if re.search(r"unable to recogni[sz]e", output, re.IGNORECASE):
+                raise PackagingError(
+                    "'%s' was not stripped: %s" % (src, output.strip())
+                )
+
+            for line in output.splitlines():
+                LOGGER.warning(line)
+
+            # file size has changed
+            attr.stats.restat(src_path)
+        #end for
+    #end function
+
+    def find_tools_interpreters(self):
+        """Note down programs for the target that need one of the tools to
+        run. See shlib_deps() for the RPATH."""
+        if self.install_prefix == "/tools":
+            return
+
+        for src, attr in self.contents.items():
+            if not attr.stats.is_file:
+                continue
+
+            if attr.stats.is_elf_binary:
+                interpreter = attr.stats.interpreter or ""
+            elif attr.stats.is_script:
+                abs_path = os.path.normpath(self.basedir + os.sep + src)
+                with open(abs_path, "rb") as f:
+                    m = re.match(rb"#!\s*(\S+)", f.readline(1024))
+                interpreter = m.group(1).decode(errors="replace") if m else ""
+            else:
+                continue
+
+            if interpreter.startswith("/tools/"):
+                self.tools_references.append(
+                    "'%s' is for the target and has the interpreter '%s'."
+                    % (src, interpreter)
+                )
+            #end if
         #end for
     #end function
 
@@ -677,26 +792,29 @@ class BinaryPackage(BasePackage):
 
             if not attr.stats.is_file or not attr.stats.is_elf_binary:
                 continue
+            if attr.stats.machine == "no machine":
+                continue
 
             abs_path  = os.path.normpath(self.basedir + os.sep + src)
             word_size = attr.stats.arch_word_size
             cmd       = [objdump, "-p", abs_path]
 
-            with subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT, universal_newlines=True) as proc:
-                while True:
-                    line = proc.stdout.readline()
-                    if not line:
-                        break
+            for line in self.run_program(cmd, src).splitlines():
+                m = re.match(r"^\s*(?:RPATH|RUNPATH)\s+(\S+)", line)
+                if m and self.install_prefix != "/tools" and \
+                        re.search(r"(^|:)/tools(/|:|$)", m.group(1)):
+                    self.tools_references.append(
+                        "'%s' is for the target and has the RPATH '%s'."
+                        % (src, m.group(1))
+                    )
 
-                    m = re.match(r"^\s*NEEDED\s+(\S+)", line)
-                    if not m:
-                        continue
-                    lib_name = m.group(1)
-                    self._find_and_register_dependency(lib_name, shlib_cache,
-                            bin_pkgs, word_size=word_size)
-                #end for
-            #end with
+                m = re.match(r"^\s*NEEDED\s+(\S+)", line)
+                if not m:
+                    continue
+                lib_name = m.group(1)
+                self._find_and_register_dependency(lib_name, shlib_cache,
+                        bin_pkgs, word_size=word_size)
+            #end for
         #end for
     #end function
 
@@ -741,8 +859,8 @@ class BinaryPackage(BasePackage):
                     if "requires" not in self.relations:
                         self.relations["requires"] = \
                                 BasePackage.DependencySpecification()
-                    self.relations["requires"][pkg_name] = \
-                            BasePackage.Dependency(pkg_name, "%s %s" %
+                    self.relations["requires"][pkg.name] = \
+                            BasePackage.Dependency(pkg.name, "%s %s" %
                                     (relation, self.version))
                 #end if
 
@@ -794,6 +912,7 @@ class BinaryPackage(BasePackage):
 
             export AELTRA_INSTALL_PREFIX="%s"
             export AELTRA_HOST_TYPE="%s"
+            export AELTRA_TARGET_TYPE="%s"
             export PATH="%s"
 
             if [ -d "/tools" ]; then
@@ -864,4 +983,3 @@ class BinaryPackage(BasePackage):
     #end function
 
 #end class
-            export AELTRA_TARGET_TYPE="%s"

@@ -26,9 +26,11 @@
 import copy
 import logging
 import os
+import re
 import shutil
 
-from aeltra.error import UnmetDependency, InvocationError, SkipBuild
+from aeltra.error import UnmetDependency, InvocationError, \
+        PackagingError, SkipBuild
 
 from aeltra.miscellaneous.platform import Platform
 from aeltra.miscellaneous.userinfo import UserInfo
@@ -261,12 +263,12 @@ class PackageControl:
                     debug_pkgs=self.parms["debug_pkgs"],
                     install_prefix=self.defines["AELTRA_INSTALL_PREFIX"],
                     host_type=self.defines["AELTRA_HOST_TYPE"],
-                    build_for=build_for
-                )
                     target_type=self.defines["AELTRA_TARGET_TYPE"],
                     parallel_jobs=Platform.parallel_jobs(
                         self.defines.get("AELTRA_PARALLEL_JOBS")
                     ),
+                    build_for=build_for
+                )
 
                 if self.parms["enable_packages"]:
                     if pkg.name not in self.parms["enable_packages"]:
@@ -384,10 +386,193 @@ class PackageControl:
             pkg.prepare()
         for pkg in self.bin_pkgs:
             pkg.strip_debug_symbols_and_unarm_rpath()
+            pkg.strip_static_libraries()
         for pkg in self.bin_pkgs:
             shlib_cache.overlay_package(pkg)
         for pkg in self.bin_pkgs:
-            pkg.pack(shlib_cache, self.bin_pkgs)
+            pkg.find_tools_interpreters()
+
+        try:
+            for pkg in self.bin_pkgs:
+                pkg.shlib_deps(shlib_cache, self.bin_pkgs)
+        finally:
+            # also what was found before a dependency was not
+            self._report_tools_references()
+
+        if any(pkg.tools_references for pkg in self.bin_pkgs):
+            raise PackagingError("packages for the target need the tools.")
+
+        for path in self.build_references():
+            LOGGER.warning("'%s' has the folder of the build in it." % path)
+
+        for pkg in self.bin_pkgs:
+            pkg.do_pack()
+
+        # Some files have no package on purpose if not all are built.
+        if not self.parms["enable_packages"] and \
+                not self.parms["disable_packages"]:
+            for path in self.unclaimed_files():
+                LOGGER.warning(
+                    "'%s' was installed but is in no package." % path
+                )
+            #end for
+
+            for src, target in self.dangling_links():
+                LOGGER.warning(
+                    "'%s' is a link to '%s', which is in no package." %
+                    (src, target)
+                )
+            #end for
+        #end if
+    #end function
+
+    def build_references(self):
+        """Return the text files in the binary packages that mention the
+        folder of the build."""
+        work = re.escape(self.defines["AELTRA_WORK_DIR"].encode())
+        # not /work/pkg-10 if the folder is /work/pkg-1
+        regexp = re.compile(work + rb"(?![\w+~-])")
+        result = []
+
+        for pkg in self.bin_pkgs:
+            for src, attr in pkg.contents.items():
+                if not attr.stats.is_file:
+                    continue
+
+                abs_path = os.path.normpath(pkg.basedir + os.sep + src)
+
+                with open(abs_path, "rb") as f:
+                    content = f.read()
+
+                if b"\0" not in content and regexp.search(content):
+                    result.append(src)
+            #end for
+        #end for
+
+        return result
+    #end function
+
+    def dangling_links(self):
+        """Return the symbolic links that lead to nothing in any of the
+        binary packages, as pairs of the link and its target. Links of
+        libraries are checked by shlib_deps(), and those out of the prefix
+        may well lead to a file of another package."""
+        prefix = self.defines["AELTRA_INSTALL_PREFIX"] + os.sep
+        work   = self.defines["AELTRA_WORK_DIR"] + os.sep
+        result = []
+
+        contents = set()
+        for pkg in self.bin_pkgs:
+            contents.update(
+                os.sep + os.path.normpath(src).lstrip(os.sep)
+                for src in pkg.contents
+            )
+
+        for pkg in self.bin_pkgs:
+            for src, attr in pkg.contents.items():
+                if not attr.stats.is_symbolic_link or src.endswith(".so"):
+                    continue
+
+                target = attr.stats.link_target
+
+                if os.path.isabs(target):
+                    # into the folder of the build, which is never right
+                    dangling = target.startswith(work)
+                else:
+                    path = os.path.normpath(
+                        os.path.join(os.path.dirname(src), target)
+                    )
+                    dangling = path.startswith(prefix) and \
+                        path not in contents
+                #end if
+
+                if dangling:
+                    result.append((src, target))
+            #end for
+        #end for
+
+        return result
+    #end function
+
+    # Files that packages are not expected to have: documentation,
+    # libtool archives, compiled Python files (they come with their
+    # source) and what Perl writes down about an installation.
+    UNCLAIMED_IGNORE = re.compile(
+        r"/share/(doc|gtk-doc|help|info|man)/"
+        r"|\.la$"
+        r"|/__pycache__/"
+        r"|/perllocal\.pod$|/\.packlist$"
+    )
+
+    # A folder with more unclaimed entries than this is reported in place of
+    # them, see unclaimed_files().
+    UNCLAIMED_MANY = 5
+
+    def unclaimed_files(self):
+        """Return what is in the install folder but in none of the binary
+        packages, as paths below the install folder. A folder of which
+        nothing is packaged is returned in place of its files, with a
+        slash at the end, if these would be many."""
+        install_dir = self.defines["AELTRA_INSTALL_DIR"]
+
+        claimed = set()
+        for pkg in self.bin_pkgs:
+            for src in pkg.contents:
+                claimed.add(os.sep + os.path.normpath(src).lstrip(os.sep))
+
+        # It is the path in a package that counts: a recipe may copy files to
+        # the folders of packages, which are folders of the install folder,
+        # or install variants of which a file is only needed once.
+        def is_claimed(rel_path):
+            parts = rel_path.split(os.sep)
+            return any(
+                os.sep + os.sep.join(parts[i:]) in claimed
+                for i in range(1, len(parts))
+            )
+        #end inline function
+
+        # The folders for debug information are made while packaging.
+        debug_dir = os.sep.join(
+            [self.defines["AELTRA_INSTALL_PREFIX"], "lib", "debug", ""]
+        )
+
+        def collect(directory):
+            """Return what is unclaimed in the directory, and whether
+            anything at all in it is claimed."""
+            result, any_claimed = [], False
+
+            for entry in sorted(os.scandir(directory), key=lambda e: e.name):
+                rel_path = entry.path[len(install_dir):]
+
+                if entry.is_dir(follow_symlinks=False):
+                    if debug_dir in rel_path + os.sep:
+                        continue
+
+                    sub_result, sub_claimed = collect(entry.path)
+
+                    if not sub_claimed and \
+                            len(sub_result) > self.UNCLAIMED_MANY:
+                        sub_result = [rel_path + os.sep]
+
+                    any_claimed = any_claimed or sub_claimed
+                    result += sub_result
+                elif is_claimed(rel_path):
+                    any_claimed = True
+                elif self.UNCLAIMED_IGNORE.search(rel_path):
+                    pass
+                elif self.defines["AELTRA_INSTALL_PREFIX"] == "/tools" and \
+                        re.search(r"^(/[^/]+)?/(etc|var)/", rel_path):
+                    # shared with the target, see generate_file_list()
+                    pass
+                else:
+                    result.append(rel_path)
+                #end if
+            #end for
+
+            return result, any_claimed
+        #end inline function
+
+        return collect(install_dir)[0]
     #end function
 
     def repackage(self):
@@ -407,6 +592,13 @@ class PackageControl:
     #end function
 
     # PRIVATE
+
+    def _report_tools_references(self):
+        """All of them are reported before the build is stopped."""
+        for pkg in self.bin_pkgs:
+            for msg in pkg.tools_references:
+                LOGGER.error(msg)
+    #end function
 
     def _source_cache(self):
         return SourceCache(self._cache_dir, self.parms["release"],
