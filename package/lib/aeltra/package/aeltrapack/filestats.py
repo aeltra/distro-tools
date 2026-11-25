@@ -98,6 +98,9 @@ class FileStats:
 
     @staticmethod
     def detect_from_filename(filename):
+        """All that is asked of libmagic is about ELF files. It is slow, so
+        it only gets to see those, which begin the same way whatever machine
+        and byte order they are for."""
         if os.path.islink(filename):
             link_target = os.readlink(filename)
             magic_obj = FileMagic(
@@ -106,7 +109,17 @@ class FileStats:
         else:
             if not os.path.exists(filename):
                 raise ValueError("no such file '%s'" % filename)
-            magic_obj = magic.detect_from_filename(filename)
+
+            header = FileStats._read_header(filename)
+
+            if header == b"\x7fELF":
+                magic_obj = magic.detect_from_filename(filename)
+            else:
+                magic_obj = FileMagic(
+                        mime_type='application/octet-stream',
+                        encoding='binary',
+                        name='script' if header[:2] == b"#!" else 'data')
+            #end if
         #end if
 
         stats_obj = os.lstat(filename)
@@ -116,6 +129,19 @@ class FileStats:
             filestats.link_target = link_target
 
         return filestats
+    #end function
+
+    @staticmethod
+    def _read_header(filename):
+        # Opening a pipe would not return.
+        if not os.path.isfile(filename):
+            return b""
+
+        try:
+            with open(filename, "rb") as f:
+                return f.read(4)
+        except PermissionError:
+            return b""
     #end function
 
     def __init__(self, magic_obj, stats_obj):
@@ -186,6 +212,20 @@ class FileStats:
             return True
 
         return False
+    #end function
+
+    @property
+    def is_script(self):
+        return self._magic_obj.name == "script"
+    #end function
+
+    @property
+    def interpreter(self):
+        regexp = r"ELF \d+-bit .SB .*, interpreter ([^, ]+)"
+        m = re.match(regexp, self._magic_obj.name)
+        if m:
+            return m.group(1)
+        return None
     #end function
 
     @property
