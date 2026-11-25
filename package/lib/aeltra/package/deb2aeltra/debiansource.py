@@ -287,13 +287,16 @@ class DebianSource(PackageUtilsMixin):
             with ArchiveFileReader(archive_source_path, raw=True) as archive:
                 try:
                     next(iter(archive))
-                    proc = subprocess.Popen(patch_cmd, stdin=subprocess.PIPE)
-                    for chunk in iter(lambda: archive.read_data(4096), b""):
-                        proc.stdin.write(chunk)
-                    proc.stdin.close()
-                    proc.wait()
+                    debdiff = b"".join(
+                        iter(lambda: archive.read_data(4096), b"")
+                    )
+                    subprocess.run(patch_cmd, input=debdiff, check=True)
                 except StopIteration:
                     pass
+                except (OSError, subprocess.CalledProcessError) as e:
+                    raise AeltraError(
+                        "failed to apply '{}': {}".format(debdiff_gz, str(e))
+                    )
             #end with
         #end if
 
@@ -335,7 +338,14 @@ class DebianSource(PackageUtilsMixin):
 
             cmd = ["fakeroot", "make", "-C", deb_source_dir, "-f",
                     "debian/rules", target]
-            subprocess.run(cmd)
+
+            try:
+                subprocess.run(cmd, check=True)
+            except (OSError, subprocess.CalledProcessError) as e:
+                raise AeltraError(
+                    "failed to invoke debian/rules target '{}': {}"
+                    .format(target, str(e))
+                )
         #end for
     #end function
 
