@@ -4,7 +4,8 @@
 # built by calling the build backend named in pyproject.toml directly and put
 # into the folder "dist". There is no isolated build environment, whatever the
 # backend needs has to be installed. The wheel is then installed with the
-# "installer" module. Understands the following parameters:
+# "installer" module. Python runs with -P, the current directory may not
+# hide an installed module. Understands the following parameters:
 #
 # --build           Build the wheel.
 # --install         Install the wheel, build it first if there is none yet
@@ -61,7 +62,7 @@ bh_python_install()
     fi
 
     if [ "$py_action" = "build" ] || ! ls dist/*.whl > /dev/null 2>&1; then
-        "$py_interp" - <<'EOF'
+        "$py_interp" -P - <<'EOF'
 import importlib
 import os
 import sys
@@ -92,7 +93,7 @@ EOF
 
     if [ "$py_action" = "install" ]; then
         for py_wheel in dist/*.whl; do
-            DEB_PYTHON_INSTALL_LAYOUT="deb" "$py_interp" -m installer \
+            DEB_PYTHON_INSTALL_LAYOUT="deb" "$py_interp" -P -m installer \
                 --destdir="$py_root" \
                 --prefix="$AELTRA_INSTALL_PREFIX" \
                 "$py_wheel"
