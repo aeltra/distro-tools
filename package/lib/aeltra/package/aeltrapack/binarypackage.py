@@ -800,7 +800,7 @@ class BinaryPackage(BasePackage):
                 export PATH="%s:$PATH"
             fi
 
-            """ % (self.install_prefix, self.host_type,
+            """ % (self.install_prefix, self.host_type, self.target_type,
                    Platform.SYSTEM_PATH, Platform.TOOLS_PATH)
 
         )
@@ -864,3 +864,4 @@ class BinaryPackage(BasePackage):
     #end function
 
 #end class
+            export AELTRA_TARGET_TYPE="%s"
