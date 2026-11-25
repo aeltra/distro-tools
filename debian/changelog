@@ -1,3 +1,12 @@
+aeltra-distro-tools (1.19.2-1) unstable; urgency=medium
+
+  * package: bh_python_install no longer has the current directory in the
+    search path of Python, where a file of the project could hide an
+    installed module. A project whose build backend is in its sources
+    says so in pyproject.toml (backend-path).
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Wed, 25 Nov 2026 11:09:21 +0300
+
 aeltra-distro-tools (1.19.1-1) unstable; urgency=medium
 
   * ffi-libarchive: unpack_to_disk(), with which aeltra-pack and
