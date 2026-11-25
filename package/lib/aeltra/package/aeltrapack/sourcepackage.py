@@ -34,6 +34,7 @@ import sys
 
 from datetime import datetime
 from lxml import etree
+from tempfile import NamedTemporaryFile
 
 from aeltra.error import PackagingError
 from aeltra.ffi.libarchive import ArchiveFileReader
@@ -222,7 +223,7 @@ class SourcePackage(BasePackage):
     #end function
 
     def patch(self, source_dir="."):
-        patch = Platform.find_executable("patch")
+        patch = Platform.find_executable("patch", "patch")
 
         sys.stdout.flush()
         sys.stderr.flush()
@@ -249,7 +250,10 @@ class SourcePackage(BasePackage):
             cmd = [patch, "-f", "-p%s" % strip_components, "-d", e_source_dir,
                     "-i", patch_abs]
             try:
-                subprocess.run(cmd, stderr=subprocess.STDOUT, check=True)
+                subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                        stderr=subprocess.STDOUT, check=True)
+            except OSError as e:
+                raise PackagingError("unable to run patch: " + str(e))
             except subprocess.CalledProcessError:
                 raise PackagingError(
                     "couldn't apply patch \"{}\"".format(patch_name)
@@ -273,18 +277,25 @@ class SourcePackage(BasePackage):
 
         env    = self._update_env(env)
         script = self._load_helpers() + "\n" + self.rules[action]
-        cmd    = ["/bin/sh", "-e", "-x", "-s"]
 
         sys.stdout.flush()
         sys.stderr.flush()
 
-        try:
-            subprocess.run(cmd, env=env, input=script.encode("utf-8"),
-                    stderr=subprocess.STDOUT, check=True)
-        except subprocess.CalledProcessError:
-            msg = "failed to %s the source package." % action
-            raise PackagingError(msg)
-        #end try
+        # Not through standard input: a program that reads from there would
+        # take the rest of the script, and the shell would be done.
+        with NamedTemporaryFile(prefix="aeltra-", suffix=".sh") as fp:
+            fp.write(script.encode("utf-8"))
+            fp.flush()
+
+            try:
+                subprocess.run(["/bin/sh", "-e", "-x", fp.name], env=env,
+                        stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                        check=True)
+            except subprocess.CalledProcessError:
+                msg = "failed to %s the source package." % action
+                raise PackagingError(msg)
+            #end try
+        #end with
     #end function
 
     # PRIVATE
