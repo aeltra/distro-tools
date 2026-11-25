@@ -107,9 +107,11 @@ class Platform:
             return Platform._dpkg_build_flags()
 
         file_prefix_map = ""
-        if env and env.get("AELTRA_BUILD_DIR"):
-            file_prefix_map = \
-                " -ffile-prefix-map=" + env["AELTRA_BUILD_DIR"] + "=."
+        if env:
+            work_dir = env.get("AELTRA_WORK_DIR") or \
+                env.get("AELTRA_BUILD_DIR")
+            if work_dir:
+                file_prefix_map = " -ffile-prefix-map=" + work_dir + "=."
 
         # Not every hardening feature is available on every architecture and
         # passing an unsupported one makes the compiler bail out.
@@ -121,6 +123,8 @@ class Platform:
         stack_clash = ""
         if machine in Platform.STACK_CLASH_MACHINES:
             stack_clash = " -fstack-clash-protection"
+        # The sources and the build folder are both below the work folder,
+        # often next to each other.
 
         branch_protection = ""
         if machine in Platform.CF_PROTECTION_MACHINES:
