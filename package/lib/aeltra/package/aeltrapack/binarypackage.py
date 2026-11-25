@@ -117,6 +117,10 @@ class BinaryPackage(BasePackage):
             kwargs.get("install_prefix", "/usr")
         self.host_type = \
             kwargs.get("host_type", Platform.target_type())
+        self.target_type = \
+            kwargs.get("target_type", self.host_type)
+        self.parallel_jobs = \
+            kwargs.get("parallel_jobs", Platform.parallel_jobs())
 
         self.relations = {}
 

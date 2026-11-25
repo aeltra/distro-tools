@@ -179,13 +179,21 @@ class DebianPackage(BinaryPackage):
         #end with
     #end function
 
-    ZSTD_OPTIONS = [("zstd", "compression-level", "19")]
+    @property
+    def zstd_options(self):
+        # The result is the same for any number of threads, but not for none
+        # ("0" would be one for each CPU).
+        return [
+            ("zstd", "compression-level", "19"),
+            ("zstd", "threads", str(max(1, int(self.parallel_jobs)))),
+        ]
+    #end function
 
     def write_control_part(self, meta_data, pkg_contents, ctrl_abspath,
             timestamp, sha256sums=""):
         with ArchiveFileWriter(ctrl_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
-                options=self.ZSTD_OPTIONS) as archive:
+                options=self.zstd_options) as archive:
 
             control_contents = [("control", str(meta_data), 0o644)]
 
@@ -235,7 +243,7 @@ class DebianPackage(BinaryPackage):
 
         with ArchiveFileWriter(data_abspath, libarchive.FORMAT_TAR_USTAR,
                 libarchive.COMPRESSION_ZSTD,
-                options=self.ZSTD_OPTIONS) as archive:
+                options=self.zstd_options) as archive:
 
             with ArchiveEntry() as archive_entry:
                 for src, attr in pkg_contents.items():

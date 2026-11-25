@@ -99,6 +99,21 @@ class Platform:
     #end function
 
     @staticmethod
+    def parallel_jobs(default=None):
+        """Return how many jobs to run at once, as a string. The default is
+        for what the environment does not say."""
+        result = os.environ.get("AELTRA_PARALLEL_JOBS") or default or \
+            str(int((os.cpu_count() or 1) * 1.5))
+
+        if not re.match(r"^[0-9]+$", result):
+            raise AeltraError(
+                "AELTRA_PARALLEL_JOBS is not a number: '%s'" % result
+            )
+
+        return result
+    #end function
+
+    @staticmethod
     def build_flags(env=None):
         build_flags = {}
 
@@ -106,6 +121,8 @@ class Platform:
                 os.path.exists("/etc/debian_version"):
             return Platform._dpkg_build_flags()
 
+        # The sources and the build folder are both below the work folder,
+        # often next to each other.
         file_prefix_map = ""
         if env:
             work_dir = env.get("AELTRA_WORK_DIR") or \
@@ -123,8 +140,6 @@ class Platform:
         stack_clash = ""
         if machine in Platform.STACK_CLASH_MACHINES:
             stack_clash = " -fstack-clash-protection"
-        # The sources and the build folder are both below the work folder,
-        # often next to each other.
 
         branch_protection = ""
         if machine in Platform.CF_PROTECTION_MACHINES:

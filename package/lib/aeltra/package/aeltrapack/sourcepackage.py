@@ -416,12 +416,8 @@ class SourcePackage(BasePackage):
                 datetime.fromisoformat(self.date).timestamp()
             ))
 
-        env["AELTRA_PARALLEL_JOBS"] = os.environ.get(
-            "AELTRA_PARALLEL_JOBS",
-            env.get(
-                "AELTRA_PARALLEL_JOBS",
-                str(int(os.cpu_count() * 1.5))
-            )
+        env["AELTRA_PARALLEL_JOBS"] = Platform.parallel_jobs(
+            env.get("AELTRA_PARALLEL_JOBS")
         )
 
         if env.get("PATH") is None:

@@ -263,6 +263,10 @@ class PackageControl:
                     host_type=self.defines["AELTRA_HOST_TYPE"],
                     build_for=build_for
                 )
+                    target_type=self.defines["AELTRA_TARGET_TYPE"],
+                    parallel_jobs=Platform.parallel_jobs(
+                        self.defines.get("AELTRA_PARALLEL_JOBS")
+                    ),
 
                 if self.parms["enable_packages"]:
                     if pkg.name not in self.parms["enable_packages"]:
