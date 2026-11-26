@@ -1,3 +1,48 @@
+aeltra-distro-tools (1.20.0-1) unstable; urgency=medium
+
+  * package: aeltra-pack removes the debug information from static
+    libraries, with the options of dh_strip. It is not kept in the
+    package with the debug information.
+  * package: aeltra-pack warns about files that were installed but are in
+    none of the packages. Documentation, libtool archives and the like
+    are not reported, and nothing is if only some of the packages are
+    built (--enable-packages, --disable-packages).
+  * package: aeltra-pack warns about symbolic links that lead nowhere, if
+    the target would be below the prefix and is in none of the packages,
+    or if it is in the folder of the build.
+  * package: aeltra-pack warns about text files in packages that have the
+    folder of the build in them.
+  * package: aeltra-pack stops if files of a package for the target have
+    an interpreter or an RPATH in the tools folder, after it has reported
+    all of them and before a package is made.
+  * package: a dependency on a library of the same build that is not in
+    the cache of shared libraries was registered with the wrong name.
+  * package: the rules of a recipe are no longer passed to the shell
+    through its standard input, where a program that reads from it took
+    the rest of the script. The build then went on as if all was done.
+    Standard input is now empty.
+  * package: aeltra-pack stops if objdump fails. The dependencies of the
+    file were missing. If objcopy, strip, patch or the unpacking of sources
+    fails it says so in place of a traceback.
+  * package: deb2aeltra stops if the Debian diff does not apply or a
+    target of debian/rules fails.
+  * package: aeltra-pack only asks libmagic about files that begin like an
+    ELF file, which is many times faster.
+  * package: aeltra-pack does not look for the dependencies of ELF files
+    that are for no machine, such as the compiled files of Guile.
+  * package: packages are compressed with as many threads as the build
+    runs jobs (AELTRA_PARALLEL_JOBS). The result does not depend on the
+    number.
+  * package: maintainer scripts and trigger scripts have the variable
+    AELTRA_TARGET_TYPE. It differs from AELTRA_HOST_TYPE in a package of
+    a cross compiler.
+  * misc: the compiler flags map the work folder of a build, which has
+    the sources and the build folder in it, and not just the build
+    folder. The paths of sources next to the build folder ended up in
+    programs and libraries.
+
+ -- Tobias Koch <tobias.koch@gmail.com>  Thu, 26 Nov 2026 00:50:33 +0300
+
 aeltra-distro-tools (1.19.2-1) unstable; urgency=medium
 
   * package: bh_python_install no longer has the current directory in the
